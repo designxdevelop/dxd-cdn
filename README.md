@@ -1,18 +1,53 @@
 # DXD CDN
 
-A custom CDN implementation using Cloudflare Workers and R2 storage to serve files from GitHub repositories. Supports versioning, minification, and compression.
+A hybrid CDN using Cloudflare Workers and R2 storage. Supports file upload/browsing with multi-client organization, GitHub proxy with versioning/minification, and direct R2 file serving.
 
 ## Features
 
+### File Management
+- 📤 Web-based file upload with password protection
+- 📂 File browser with fuzzy search and filters (client/project/env)
+- 📊 File analytics tracking (request count, first/last served)
+- 🗑️ File deletion via API
+- 🎬 MP4 streaming with range request support
+
+### GitHub Proxy (Legacy)
 - 🌍 Global CDN via Cloudflare's edge network
 - 📦 Serves files from public and private GitHub repositories
 - 🏷️ Version control support (releases and commit hashes)
 - 🔄 Automatic minification for JS and CSS files
 - 💾 R2 caching for improved performance
 - 🗜️ Automatic compression for script/link requests
-- 👀 Browser-friendly file previews
+
+### Tools
 - 🔄 JSDelivr URL conversion support
 - 🚀 Pre-caching option for faster delivery
+
+## Project Structure
+
+```
+src/
+  index.js              # Main entry point, request routing
+  config/
+    constants.js        # Content types, preview types, GitHub config
+  handlers/
+    api.js              # API route handlers
+    browse.js           # File browser UI
+    responses.js        # R2 and GitHub response handling
+    streaming.js        # MP4 streaming support
+    upload.js           # File upload handling
+  services/
+    github.js           # GitHub API integration
+    minification.js     # Basic JS/CSS minification
+  templates/
+    browse.js           # Browse page HTML templates
+    pages.js            # Special pages (speed-test, convert)
+    upload.js           # Upload page HTML templates
+  utils/
+    compression.js      # Gzip compression utilities
+    cors.js             # CORS handling utilities
+    files.js            # File operations, fuzzy search, analytics
+```
 
 ## Setup Instructions
 
@@ -31,40 +66,32 @@ A custom CDN implementation using Cloudflare Workers and R2 storage to serve fil
 ### 2. R2 Bucket Setup
 
 1. Create an R2 bucket in Cloudflare Dashboard:
-
    - Go to R2 section
    - Click "Create bucket"
    - Name it `dxd-cdn` (or update wrangler.toml if using a different name)
 
 2. Update wrangler.toml with your bucket details (already configured if using default name)
 
-### 3. GitHub Token Setup
+### 3. Secrets Setup
 
-1. Create a GitHub Personal Access Token:
+```bash
+# Required for file upload/browse authentication
+wrangler secret put UPLOAD_PASSWORD
 
-   - Go to GitHub.com → Settings → Developer Settings → Personal Access Tokens → Tokens (classic)
-   - Click "Generate new token (classic)"
-   - Select scopes:
-     - For public repos only: `public_repo`
-     - For private repos: `repo` (full control)
-   - Copy the generated token
+# Required for GitHub proxy functionality
+wrangler secret put GITHUB_TOKEN
+```
 
-2. Add the token to your worker:
-   ```bash
-   wrangler secret put GITHUB_TOKEN
-   ```
-   When prompted, paste your GitHub token
+For the GitHub token:
+- Go to GitHub.com → Settings → Developer Settings → Personal Access Tokens
+- Select scopes: `public_repo` (public only) or `repo` (private repos)
 
 ### 4. Custom Domain Setup (Optional)
 
 1. Add your domain in Cloudflare Dashboard:
+   - Go to Workers & Pages → Select your worker → Add Custom Domain
 
-   - Go to Workers & Pages
-   - Select your worker
-   - Click "Add Custom Domain"
-   - Follow the prompts to add your domain
-
-2. Update wrangler.toml with your domain:
+2. Update wrangler.toml:
    ```toml
    routes = [
        { pattern = "your-domain.com", custom_domain = true }
@@ -73,92 +100,131 @@ A custom CDN implementation using Cloudflare Workers and R2 storage to serve fil
 
 ## Deployment
 
-1. Clone this repository
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-3. Deploy to Cloudflare:
-   ```bash
-   npm run deploy
-   ```
+```bash
+npm install
+npm run deploy
+```
 
 ## Usage
 
-### URL Format
+### File Upload
+
+Visit `https://your-domain.com/upload` to:
+- Upload files with password authentication
+- Specify upload path (client/project/env structure recommended)
+- Auto-generates unique filenames if conflicts exist
+
+### File Browser
+
+Visit `https://your-domain.com/browse` to:
+- Browse all uploaded files
+- Search with fuzzy matching
+- Filter by client, project, or environment
+- View file analytics
+- Delete files
+- Copy CDN URLs
+
+### Direct File Access
+
+```
+https://your-domain.com/[client]/[project]/[env]/[filename]
+```
+
+Example:
+```
+https://your-domain.com/acme/website/prod/hero-image.webp
+```
+
+Query parameters:
+- `?download=true` - Force download instead of inline display
+
+### GitHub Proxy (Legacy)
 
 ```
 https://your-domain.com/[repo-name]/[version]/[file-path]
 ```
 
-Where:
+Where `version` can be:
+- A release tag: `v1.0.0`
+- A commit hash: `a1b2c3d`
+- Latest release: `latest`
 
-- `repo-name`: Name of your GitHub repository
-- `version`: Can be:
-  - A specific release tag (e.g., `v1.0.0`)
-  - A commit hash (full or short, e.g., `a1b2c3d`)
-- `file-path`: Path to the file in the repository
-
-### Examples
-
+Examples:
 ```
 # Specific version
 https://your-domain.com/my-project/v1.0.0/dist/script.js
 
-# Specific commit
-https://your-domain.com/my-project/a1b2c3d/dist/script.js
-
 # Minified version (add .min before extension)
 https://your-domain.com/my-project/v1.0.0/dist/script.min.js
+
+# Latest release
+https://your-domain.com/my-project/latest/dist/script.js
 ```
 
 ### URL Converter Tool
 
-Visit `https://your-domain.com/convert` for a web interface that provides:
-
+Visit `https://your-domain.com/convert` for a web interface to:
 - Convert GitHub URLs to CDN URLs
 - Convert JSDelivr URLs to CDN URLs
-- Select specific versions or commit hashes
+- Select versions or commit hashes
 - Toggle minification
-- Pre-cache files for faster delivery
-- One-click copying with ⌘C/Ctrl+C
+- Pre-cache files
 
-#### Converting from GitHub
+## API Endpoints
 
-1. Paste a GitHub file URL
-2. Choose between version or commit hash
-3. Toggle minification if needed
-4. Enable pre-caching if desired
-5. Copy the generated CDN URL
+All API endpoints require `?password=XXX` for authentication.
 
-#### Converting from JSDelivr
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/files` | GET | List files with optional search/filter |
+| `/api/file-stats` | GET | Get analytics for a specific file |
+| `/api/file-content` | GET | Get HTML file content |
+| `/api/delete-file` | DELETE | Delete a file |
 
-1. Paste a JSDelivr URL
-2. The version/commit from the JSDelivr URL will be preserved
-3. Toggle minification if needed
-4. Enable pre-caching if desired
-5. Copy the generated CDN URL
+### Query Parameters
+
+**`/api/files`**
+- `search` - Fuzzy search query
+- `client` - Filter by client name
+- `project` - Filter by project (format: `client/project`)
+- `env` - Filter by environment (`staging` or `prod`)
+
+**`/api/file-stats` and `/api/file-content`**
+- `file` - Full file path
+
+**`/api/delete-file`**
+- `file` - Full file path to delete
 
 ## Development
 
-1. Run locally:
-   ```bash
-   npm run dev
-   ```
-2. Make changes to `src/index.js`
-3. Deploy changes:
-   ```bash
-   npm run deploy
-   ```
+```bash
+npm run dev    # Start local dev server
+npm run deploy # Deploy to Cloudflare
+```
 
 ## Environment Variables
 
-- `GITHUB_TOKEN`: GitHub Personal Access Token (required)
-- No other environment variables needed
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `UPLOAD_PASSWORD` | Yes | Password for upload/browse/API access |
+| `GITHUB_TOKEN` | For GitHub proxy | GitHub Personal Access Token |
+| `ENVIRONMENT` | No | Set to "production" in prod |
+
+## File Path Convention
+
+Recommended structure for uploaded files:
+```
+/:client/:project/:env/:filename
+```
+
+Examples:
+- `acme/website/prod/logo.svg`
+- `acme/website/staging/hero-video.mp4`
+- `bigcorp/landing-page/prod/styles.css`
 
 ## Limitations
 
-- Minification only supported for JS and CSS files
+- Minification only supported for JS and CSS files (basic, Workers-compatible)
 - R2 storage limits based on your Cloudflare plan
 - GitHub API rate limits apply when fetching new files
 - Private repos require `repo` scope GitHub token
