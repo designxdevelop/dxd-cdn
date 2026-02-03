@@ -1,4 +1,4 @@
-import { DEFAULT_GITHUB_OWNER } from '../config/constants';
+import { DEFAULT_GITHUB_OWNER } from '../config/constants.js';
 import portalHtml from './html/portal.html';
 import speedTestHtml from './html/speed-test.html';
 

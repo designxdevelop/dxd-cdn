@@ -18,6 +18,13 @@ bucket_name = "dxd-cdn"
 [vars]
 ENVIRONMENT = "production"
 
+# Secrets (set via: wrangler secret put UPLOAD_PASSWORD)
+# UPLOAD_PASSWORD - Required for /upload and /browse routes
+
+[observability]
+enabled = true
+head_sampling_rate = 1
+
 [observability.logs]
 enabled = true
 invocation_logs = false

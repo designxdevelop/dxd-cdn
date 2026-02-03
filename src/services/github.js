@@ -1,5 +1,5 @@
-import { DEFAULT_GITHUB_OWNER, GITHUB_CACHE_TTL } from '../config/constants';
-import { minifyContent } from './minification';
+import { DEFAULT_GITHUB_OWNER, GITHUB_CACHE_TTL } from '../config/constants.js';
+import { minifyContent } from './minification.js';
 
 // Cache for GitHub data (in-memory, will reset on worker restart)
 const GITHUB_CACHE = new Map();

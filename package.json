@@ -1,21 +1,16 @@
 {
 	"name": "dxd-cdn",
-	"version": "1.0.0",
-	"description": "Custom CDN implementation for serving files from GitHub repositories",
+	"version": "2.0.0",
+	"description": "Hybrid CDN with file upload, browsing, analytics, GitHub proxy, and multi-client support",
 	"main": "src/index.js",
+	"type": "module",
 	"scripts": {
-		"build": "node build.js",
-		"predeploy": "npm run build",
 		"deploy": "wrangler deploy",
-		"dev": "npm run build && wrangler dev",
-		"start": "npm run dev"
-	},
-	"dependencies": {
-		"clean-css": "^5.3.2",
-		"terser": "^5.26.0"
+		"dev": "wrangler dev",
+		"start": "wrangler dev"
 	},
 	"devDependencies": {
-		"esbuild": "^0.27.2",
+		"@cloudflare/workers-types": "^4.20250514.0",
 		"wrangler": "^4.59.3"
 	}
 }

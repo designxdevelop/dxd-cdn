@@ -2,6 +2,7 @@ export const CONTENT_TYPES = {
 	js: 'application/javascript; charset=utf-8',
 	css: 'text/css; charset=utf-8',
 	html: 'text/html; charset=utf-8',
+	htm: 'text/html; charset=utf-8',
 	json: 'application/json; charset=utf-8',
 	png: 'image/png',
 	jpg: 'image/jpeg',
@@ -19,6 +20,8 @@ export const CONTENT_TYPES = {
 	xml: 'text/xml; charset=utf-8',
 	yaml: 'text/yaml; charset=utf-8',
 	yml: 'text/yaml; charset=utf-8',
+	mp4: 'video/mp4',
+	zip: 'application/zip',
 };
 
 export const PREVIEW_TYPES = new Set([
@@ -31,12 +34,28 @@ export const PREVIEW_TYPES = new Set([
 	'gif',
 	'svg',
 	'webp',
+	'mp4',
 	'js',
 	'css',
 	'json',
 	'txt',
 	'md',
 	'xml',
+	'yaml',
+	'yml',
+]);
+
+// File types that should be compressed
+export const COMPRESSIBLE_TYPES = new Set([
+	'js',
+	'css',
+	'html',
+	'htm',
+	'json',
+	'svg',
+	'xml',
+	'txt',
+	'md',
 	'yaml',
 	'yml',
 ]);

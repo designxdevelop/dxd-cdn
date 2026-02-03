@@ -1,6 +1,6 @@
-import { CONTENT_TYPES } from '../config/constants';
-import { compress } from '../utils/compression';
-import { getFileFromGitHub } from '../services/github';
+import { CONTENT_TYPES } from '../config/constants.js';
+import { compress } from '../utils/compression.js';
+import { getFileFromGitHub } from '../services/github.js';
 
 export async function handleR2Response(r2Object, extension, request) {
 	try {
