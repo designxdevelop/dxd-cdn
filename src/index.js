@@ -14,6 +14,7 @@ import { CONTENT_TYPES, PREVIEW_TYPES } from './config/constants.js';
 import { handleUploadGet, handleUploadPost } from './handlers/upload.js';
 import { handleBrowseGet, handleBrowsePost } from './handlers/browse.js';
 import { handleFilesApi, handleFileStatsApi, handleFileContentApi, handleDeleteFileApi } from './handlers/api.js';
+import { handlePutObjectApi, handleGetObjectApi } from './handlers/objects-api.js';
 import { handleMp4Stream } from './handlers/streaming.js';
 import { handleCorsPreflightRequest, getCorsHeaders } from './utils/cors.js';
 import { trackFileRequest } from './utils/files.js';
@@ -73,6 +74,14 @@ export default {
 
 			if (url.pathname === '/api/delete-file' && request.method === 'DELETE') {
 				return handleDeleteFileApi(url, env);
+			}
+
+			if (url.pathname === '/api/objects' && request.method === 'PUT') {
+				return handlePutObjectApi(request, env, url);
+			}
+
+			if (url.pathname === '/api/objects' && request.method === 'GET') {
+				return handleGetObjectApi(request, env, url);
 			}
 
 			// ========== EXISTING ROUTES ==========
@@ -191,15 +200,18 @@ async function handleGitHubProxyRequest(request, env, ctx, url, path, pathParts)
 			response = await handleGitHubResponse(repo, version, filePath, env, ctx, shouldMinify, request);
 		}
 
-		// Set aggressive caching headers
+		// Preserve per-object Cache-Control from R2 when present; otherwise immutable default
 		const headers = new Headers(response.headers);
-		headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+		if (!headers.get('Cache-Control')) {
+			headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+		}
 		headers.set('Access-Control-Allow-Origin', '*');
 		headers.set('CF-Cache-Status', r2Object ? 'R2_HIT' : 'R2_MISS');
 
-		// Add ETag for caching
-		const etag = `"${repo}-${version}-${filePath}-${Date.now()}"`;
-		headers.set('ETag', etag);
+		// Prefer object ETag; fall back to synthetic
+		if (!headers.get('ETag')) {
+			headers.set('ETag', `"${repo}-${version}-${filePath}"`);
+		}
 
 		// Create final response
 		response = new Response(response.body, {
@@ -250,10 +262,10 @@ async function handleDirectR2Request(request, env, ctx, url, path) {
 		return handleMp4Stream(request, object, env, path);
 	}
 
-	// Prepare headers
+	// Prepare headers — honor per-object Cache-Control from R2 metadata when set
 	const headers = new Headers({
 		'Content-Type': contentType,
-		'Cache-Control': 'public, max-age=31536000',
+		'Cache-Control': object.httpMetadata?.cacheControl || 'public, max-age=31536000',
 		ETag: object.httpEtag,
 		'Last-Modified': object.uploaded.toUTCString(),
 		'Access-Control-Allow-Origin': '*',

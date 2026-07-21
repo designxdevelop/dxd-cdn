@@ -201,13 +201,19 @@ npm run dev   # Start local server
 ## Key Patterns
 
 ### Password Validation
-All protected routes use query param `?password=XXX` validated against `env.UPLOAD_PASSWORD`.
+Protected routes accept `Authorization: Bearer` or query `?password=` against `env.UPLOAD_PASSWORD`.
 
 ### File Path Structure
 Uploaded files follow: `/:client/:project/:env/:filename`
 GitHub proxy follows: `/:repo/:version/:filepath`
 
+### Objects API (multi-project)
+- `PUT|GET /api/objects` — project-agnostic put/pull; see `docs/api-objects.md`
+- Shared TS client: `packages/client` (`@dxd/cdn`) — use from any DXD repo
+- Per-object `Cache-Control` via `X-DXD-Cache-Control` (honored on public GET)
+
 ### Caching Strategy
 - GitHub releases cached 5 minutes in-memory
-- Static assets cached 1 year with `immutable`
-- API responses use `no-cache`
+- Default static assets: 1 year `immutable`
+- Mutable live objects (e.g. Studio `config.json`): short TTL set by the publisher
+- API list/stats responses use `no-cache`

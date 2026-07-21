@@ -27,6 +27,9 @@ export async function handleR2Response(r2Object, extension, request) {
 			responseBody = r2Object.body;
 		}
 
+		const cacheControl = r2Object.httpMetadata?.cacheControl || 'public, max-age=31536000, immutable';
+		const cdnMaxAge = /max-age=(\d+)/.exec(cacheControl)?.[1] || '31536000';
+
 		let headers = new Headers({
 			'Content-Type': CONTENT_TYPES[extension] || 'text/plain; charset=utf-8',
 			Vary: 'Accept-Encoding, Accept',
@@ -34,9 +37,9 @@ export async function handleR2Response(r2Object, extension, request) {
 			'Content-Disposition': 'inline',
 			ETag: r2Object.httpEtag,
 			'Last-Modified': r2Object.uploaded.toUTCString(),
-			'Cache-Control': 'public, max-age=31536000, immutable',
-			'CDN-Cache-Control': 'max-age=31536000',
-			'Cloudflare-CDN-Cache-Control': 'max-age=31536000',
+			'Cache-Control': cacheControl,
+			'CDN-Cache-Control': `max-age=${cdnMaxAge}`,
+			'Cloudflare-CDN-Cache-Control': `max-age=${cdnMaxAge}`,
 			'Access-Control-Allow-Origin': '*',
 			'Access-Control-Expose-Headers': 'Content-Length, Content-Type, ETag',
 		});

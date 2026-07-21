@@ -4,10 +4,15 @@
 	"description": "Hybrid CDN with file upload, browsing, analytics, GitHub proxy, and multi-client support",
 	"main": "src/index.js",
 	"type": "module",
+	"workspaces": [
+		"packages/*"
+	],
 	"scripts": {
 		"deploy": "wrangler deploy",
 		"dev": "wrangler dev",
-		"start": "wrangler dev"
+		"start": "wrangler dev",
+		"typecheck": "npm run typecheck -w @dxd/cdn",
+		"test": "npm run test -w @dxd/cdn"
 	},
 	"devDependencies": {
 		"@cloudflare/workers-types": "^4.20250514.0",

@@ -1,6 +1,6 @@
 # DXD CDN
 
-A hybrid CDN using Cloudflare Workers and R2 storage. Supports file upload/browsing with multi-client organization, GitHub proxy with versioning/minification, and direct R2 file serving.
+A hybrid CDN using Cloudflare Workers and R2 storage. Supports file upload/browsing with multi-client organization, GitHub proxy with versioning/minification, direct R2 file serving, and a **programmatic Objects API** (`PUT|GET /api/objects`) with a shared TypeScript client (`packages/client` → `@dxd/cdn`) for any DXD project.
 
 ## Features
 
