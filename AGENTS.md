@@ -217,3 +217,18 @@ GitHub proxy follows: `/:repo/:version/:filepath`
 - Default static assets: 1 year `immutable`
 - Mutable live objects (e.g. Studio `config.json`): short TTL set by the publisher
 - API list/stats responses use `no-cache`
+
+## Cursor Cloud specific instructions
+
+Dependencies are already installed by the startup update script (`npm install`, which also links the `packages/client` workspace). Node 22 / npm 10 are available.
+
+### Running the app locally
+- `npm run dev` (alias `npm run start`) runs `wrangler dev` on `http://localhost:8787`. Wrangler/Miniflare provides a **local R2 emulator** for the `CDN_BUCKET` binding by default — no Cloudflare account, login, or real R2 bucket is needed for local end-to-end testing. Do NOT use `--remote` (it would require real Cloudflare credentials).
+- Auth-gated routes (`/upload`, `/browse`, all `/api/*`, and Objects API writes) require `UPLOAD_PASSWORD`. For local dev, set it in a gitignored `.dev.vars` file at the repo root, e.g. `UPLOAD_PASSWORD=devpassword123`. Without it these routes return 401. Wrangler auto-loads `.dev.vars`; changing it requires restarting `wrangler dev`.
+- `GITHUB_TOKEN` is only needed to exercise the GitHub proxy path (`/:repo/:version/:file`); the file CDN, browse UI, and Objects API work without it.
+- Local R2 state persists under `.wrangler/` (gitignored) between dev runs.
+
+### Testing / checks
+- `npm run typecheck` (tsc) and `npm test` (vitest) both only cover the `@dxd/cdn` client in `packages/client`. There is no test coverage or lint script for the Worker `src/` code — validate Worker changes by running `wrangler dev` and hitting endpoints with curl/browser.
+- No linter is wired up (no ESLint/Prettier in devDependencies) despite the style guide above; formatting is not enforced by a command.
+- Quick smoke test once dev server is up: `PUT /api/objects` with header `Authorization: Bearer <UPLOAD_PASSWORD>` and `X-DXD-Object-Key`, then confirm via `GET /api/objects?key=...&password=<pw>`, public `GET /<key>`, and the `/browse?password=<pw>` UI.
