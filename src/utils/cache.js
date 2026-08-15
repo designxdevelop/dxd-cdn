@@ -2,7 +2,7 @@
  * Public GET cache policy: live URLs revalidate; hashed/versioned keys stay immutable.
  */
 
-import { EDGE_MUTABLE_CACHE_CONTROL, MUTABLE_CACHE_CONTROL } from '../config/constants.js';
+import { MUTABLE_CACHE_CONTROL } from '../config/constants.js';
 
 /**
  * @param {string|null|undefined} value
@@ -24,25 +24,42 @@ export function cacheTagForKey(key) {
 }
 
 /**
- * Browser + Cloudflare edge cache headers for a public GET.
- * Honors stored per-object Cache-Control when present.
+ * Weak comparison (RFC 9110). `W/"abc"` matches `"abc"`.
+ * @param {string|null|undefined} incoming If-None-Match
+ * @param {string|null|undefined} etag
+ * @returns {boolean}
+ */
+export function etagMatches(incoming, etag) {
+	if (!incoming || !etag) return false;
+	const candidates = incoming
+		.split(',')
+		.map((value) => value.trim())
+		.filter(Boolean);
+	if (candidates.includes('*')) return true;
+	const normalized = stripWeakEtag(etag);
+	return candidates.some((candidate) => stripWeakEtag(candidate) === normalized);
+}
+
+/**
+ * @param {string} value
+ * @returns {string}
+ */
+function stripWeakEtag(value) {
+	return value.replace(/^W\//i, '').trim();
+}
+
+/**
+ * Browser + edge headers use the same Cache-Control string. Live URLs revalidate;
+ * there is no separate short edge TTL.
  * @param {string|null|undefined} storedCacheControl
  * @returns {{ 'Cache-Control': string, 'Cloudflare-CDN-Cache-Control': string, 'CDN-Cache-Control': string }}
  */
 export function cacheHeadersForObject(storedCacheControl) {
-	if (isImmutableCacheControl(storedCacheControl)) {
-		return {
-			'Cache-Control': storedCacheControl,
-			'Cloudflare-CDN-Cache-Control': storedCacheControl,
-			'CDN-Cache-Control': storedCacheControl,
-		};
-	}
-
-	const browser = storedCacheControl || MUTABLE_CACHE_CONTROL;
+	const value = storedCacheControl || MUTABLE_CACHE_CONTROL;
 	return {
-		'Cache-Control': browser,
-		'Cloudflare-CDN-Cache-Control': EDGE_MUTABLE_CACHE_CONTROL,
-		'CDN-Cache-Control': EDGE_MUTABLE_CACHE_CONTROL,
+		'Cache-Control': value,
+		'Cloudflare-CDN-Cache-Control': value,
+		'CDN-Cache-Control': value,
 	};
 }
 
@@ -51,10 +68,9 @@ export function cacheHeadersForObject(storedCacheControl) {
  * @param {Headers} headers
  * @param {{ httpEtag?: string, httpMetadata?: { cacheControl?: string }, uploaded?: Date }} object
  * @param {string} key
- * @param {string} [defaultCacheControl]
  */
-export function applyPublicCacheHeaders(headers, object, key, defaultCacheControl) {
-	const cacheHeaders = cacheHeadersForObject(object?.httpMetadata?.cacheControl || defaultCacheControl);
+export function applyPublicCacheHeaders(headers, object, key) {
+	const cacheHeaders = cacheHeadersForObject(object?.httpMetadata?.cacheControl);
 	for (const [name, value] of Object.entries(cacheHeaders)) {
 		headers.set(name, value);
 	}
@@ -75,24 +91,6 @@ export function applyPublicCacheHeaders(headers, object, key, defaultCacheContro
  * @returns {Response|null}
  */
 export function notModifiedResponse(request, etag, headers) {
-	if (!etag) return null;
-	const incoming = request.headers.get('If-None-Match');
-	if (!incoming) return null;
-	const candidates = incoming.split(',').map((value) => value.trim());
-	if (!candidates.includes(etag) && !candidates.includes('*')) return null;
+	if (!etagMatches(request.headers.get('If-None-Match'), etag)) return null;
 	return new Response(null, { status: 304, headers });
-}
-
-/**
- * R2 keys may be stored percent-encoded. Try the raw request path when decoded lookup misses.
- * @param {Request} request
- * @param {string} decodedPath
- * @returns {string|null}
- */
-export function encodedPathFallback(request, decodedPath) {
-	const rawUrlPath = request.url
-		.replace(/^https?:\/\/[^/]+/, '')
-		.split('?')[0]
-		.slice(1);
-	return rawUrlPath && rawUrlPath !== decodedPath ? rawUrlPath : null;
 }

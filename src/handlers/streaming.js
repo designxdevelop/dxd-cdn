@@ -8,6 +8,18 @@ import { applyPublicCacheHeaders, notModifiedResponse } from '../utils/cache.js'
 import { trackFileRequest } from '../utils/files.js';
 
 /**
+ * @param {R2Object|R2ObjectBody} object
+ * @param {Object} env
+ * @param {string} path
+ * @returns {Promise<R2ObjectBody|null>}
+ */
+async function fullMp4Object(object, env, path) {
+	if ('body' in object && object.body) return object;
+	const full = await env.CDN_BUCKET.get(path);
+	return full && 'body' in full ? full : null;
+}
+
+/**
  * Handle MP4 streaming with range request support
  * @param {Request} request - Incoming request
  * @param {R2Object} object - R2 object
@@ -86,15 +98,17 @@ export async function handleMp4Stream(request, object, env, path) {
 			});
 		} catch (error) {
 			console.error('Range request error:', error);
-			// Fall back to sending the full file
+			const full = await fullMp4Object(object, env, path);
+			if (!full) {
+				return new Response('File not found', { status: 404 });
+			}
 			headers.set('Content-Length', object.size.toString());
 
-			// Track file request for fallback (non-blocking)
 			trackFileRequest(env.CDN_BUCKET, path).catch((err) => {
 				console.error('Error tracking file request:', err);
 			});
 
-			return new Response(object.body, {
+			return new Response(full.body, {
 				headers,
 			});
 		}
@@ -103,14 +117,18 @@ export async function handleMp4Stream(request, object, env, path) {
 	const notModified = notModifiedResponse(request, object.httpEtag, headers);
 	if (notModified) return notModified;
 
+	const full = await fullMp4Object(object, env, path);
+	if (!full) {
+		return new Response('File not found', { status: 404 });
+	}
+
 	headers.set('Content-Length', object.size.toString());
 
-	// Track file request (non-blocking)
 	trackFileRequest(env.CDN_BUCKET, path).catch((err) => {
 		console.error('Error tracking file request:', err);
 	});
 
-	return new Response(object.body, {
+	return new Response(full.body, {
 		headers,
 	});
 }

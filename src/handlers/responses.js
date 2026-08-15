@@ -36,7 +36,17 @@ export async function handleR2Response(r2Object, extension, request) {
 			'Access-Control-Allow-Origin': '*',
 			'Access-Control-Expose-Headers': 'Content-Length, Content-Type, ETag',
 		});
-		applyPublicCacheHeaders(headers, r2Object, r2Object.key, IMMUTABLE_CACHE_CONTROL);
+		applyPublicCacheHeaders(
+			headers,
+			{
+				...r2Object,
+				httpMetadata: {
+					...r2Object.httpMetadata,
+					cacheControl: IMMUTABLE_CACHE_CONTROL,
+				},
+			},
+			r2Object.key,
+		);
 
 		// Only compress for script/link tags that accept gzip and aren't already minified
 		if (isScriptRequest && !isMinified && request.headers.get('Accept-Encoding')?.includes('gzip')) {
@@ -73,11 +83,15 @@ export async function handleGitHubResponse(repo, version, filePath, env, ctx, sh
 		const headers = new Headers({
 			'Content-Type': CONTENT_TYPES[extension] || 'text/plain; charset=utf-8',
 			'X-Served-From': 'GitHub',
-			'Cache-Control': IMMUTABLE_CACHE_CONTROL,
-			'CDN-Cache-Control': IMMUTABLE_CACHE_CONTROL,
-			'Cloudflare-CDN-Cache-Control': IMMUTABLE_CACHE_CONTROL,
 			'Access-Control-Allow-Origin': '*',
 		});
+		applyPublicCacheHeaders(
+			headers,
+			{
+				httpMetadata: { cacheControl: IMMUTABLE_CACHE_CONTROL },
+			},
+			`${repo}/${version}/${filePath}`,
+		);
 
 		// Only compress for script/link tags that accept gzip and aren't already minified
 		const acceptHeader = request.headers.get('Accept') || '';

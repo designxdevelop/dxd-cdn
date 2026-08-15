@@ -7,7 +7,7 @@
  * 3. Direct R2 file serving for uploaded assets
  */
 
-import { CONTENT_TYPES, PREVIEW_TYPES } from './config/constants.js';
+import { CONTENT_TYPES, IMMUTABLE_CACHE_CONTROL, PREVIEW_TYPES } from './config/constants.js';
 import { handleFilesApi, handleFileStatsApi, handleFileContentApi, handleDeleteFileApi } from './handlers/api.js';
 import { handleBrowseGet, handleBrowsePost } from './handlers/browse.js';
 import { handlePutObjectApi, handleGetObjectApi } from './handlers/objects-api.js';
@@ -17,9 +17,10 @@ import { handleUploadGet, handleUploadPost } from './handlers/upload.js';
 import { CdnObjects } from './services/cdn-objects.js';
 import { getLatestRelease } from './services/github.js';
 import { handleSpecialPages } from './templates/pages.js';
-import { applyPublicCacheHeaders, encodedPathFallback, notModifiedResponse } from './utils/cache.js';
+import { applyPublicCacheHeaders, cacheHeadersForObject, etagMatches, notModifiedResponse } from './utils/cache.js';
 import { handleCorsPreflightRequest, getCorsHeaders } from './utils/cors.js';
 import { trackFileRequest } from './utils/files.js';
+import { getR2Object, hasR2Body, headR2Object } from './utils/r2.js';
 
 export { CdnObjects };
 
@@ -160,8 +161,7 @@ async function handleGitHubProxyRequest(request, env, ctx, url, path, pathParts)
 
 	// Check if we have a fresh cache hit
 	if (response) {
-		const etag = request.headers.get('If-None-Match');
-		if (etag && response.headers.get('ETag') === etag) {
+		if (etagMatches(request.headers.get('If-None-Match'), response.headers.get('ETag'))) {
 			return new Response(null, { status: 304 });
 		}
 		response = new Response(response.body, response);
@@ -204,10 +204,9 @@ async function handleGitHubProxyRequest(request, env, ctx, url, path, pathParts)
 			response = await handleGitHubResponse(repo, version, filePath, env, ctx, shouldMinify, request);
 		}
 
-		// Preserve per-object Cache-Control from R2 when present; otherwise immutable default
 		const headers = new Headers(response.headers);
-		if (!headers.get('Cache-Control')) {
-			headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+		for (const [name, value] of Object.entries(cacheHeadersForObject(IMMUTABLE_CACHE_CONTROL))) {
+			headers.set(name, value);
 		}
 		headers.set('Access-Control-Allow-Origin', '*');
 		headers.set('CF-Cache-Status', r2Object ? 'R2_HIT' : 'R2_MISS');
@@ -248,43 +247,46 @@ async function handleGitHubProxyRequest(request, env, ctx, url, path, pathParts)
  */
 async function handleDirectR2Request(request, env, ctx, url, path) {
 	const forceDownload = url.searchParams.get('download') === 'true';
+	const extensionHint = path.split('.').pop().toLowerCase();
 
-	let object = await env.CDN_BUCKET.get(path);
-	if (!object) {
-		const encodedPath = encodedPathFallback(request, path);
-		if (encodedPath) {
-			object = await env.CDN_BUCKET.get(encodedPath);
-			if (object) path = encodedPath;
+	if (extensionHint === 'mp4') {
+		const found = await headR2Object(env.CDN_BUCKET, request, path);
+		if (!found.object) {
+			return new Response('File not found', { status: 404 });
 		}
+		return handleMp4Stream(request, found.object, env, found.key);
 	}
 
-	if (!object) {
+	const found = await getR2Object(env.CDN_BUCKET, request, path);
+	if (!found.object) {
 		return new Response('File not found', { status: 404 });
 	}
 
-	const extension = path.split('.').pop().toLowerCase();
+	const { object, key } = found;
+	const extension = key.split('.').pop().toLowerCase();
 	const contentType = CONTENT_TYPES[extension] || object.httpMetadata?.contentType || 'application/octet-stream';
-
-	if (extension === 'mp4') {
-		return handleMp4Stream(request, object, env, path);
-	}
 
 	const headers = new Headers({
 		'Content-Type': contentType,
 		'Access-Control-Allow-Origin': '*',
 	});
-	applyPublicCacheHeaders(headers, object, path);
+	applyPublicCacheHeaders(headers, object, key);
 
 	if (forceDownload) {
-		headers.set('Content-Disposition', `attachment; filename="${path.split('/').pop()}"`);
+		headers.set('Content-Disposition', `attachment; filename="${key.split('/').pop()}"`);
 	} else if (PREVIEW_TYPES.has(extension)) {
 		headers.set('Content-Disposition', 'inline');
+	}
+
+	if (!hasR2Body(object)) {
+		const status = etagMatches(request.headers.get('If-None-Match'), object.httpEtag) ? 304 : 412;
+		return new Response(null, { status, headers });
 	}
 
 	const notModified = notModifiedResponse(request, object.httpEtag, headers);
 	if (notModified) return notModified;
 
-	trackFileRequest(env.CDN_BUCKET, path).catch((err) => {
+	trackFileRequest(env.CDN_BUCKET, key).catch((err) => {
 		console.error('Error tracking file request:', err);
 	});
 

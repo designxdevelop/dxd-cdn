@@ -73,6 +73,3 @@ export const MUTABLE_CACHE_CONTROL = 'public, max-age=0, must-revalidate';
 
 /** Hashed / versioned snapshots that never change at that key. */
 export const IMMUTABLE_CACHE_CONTROL = 'public, max-age=31536000, immutable';
-
-/** Edge TTL for mutable objects (~60s without a purge API). */
-export const EDGE_MUTABLE_CACHE_CONTROL = 'public, max-age=60';

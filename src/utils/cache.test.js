@@ -1,10 +1,10 @@
 import { describe, expect, test } from 'vitest';
-import { EDGE_MUTABLE_CACHE_CONTROL, IMMUTABLE_CACHE_CONTROL, MUTABLE_CACHE_CONTROL } from '../config/constants.js';
+import { IMMUTABLE_CACHE_CONTROL, MUTABLE_CACHE_CONTROL } from '../config/constants.js';
 import {
 	applyPublicCacheHeaders,
 	cacheHeadersForObject,
 	cacheTagForKey,
-	encodedPathFallback,
+	etagMatches,
 	isImmutableCacheControl,
 	notModifiedResponse,
 } from './cache.js';
@@ -34,19 +34,32 @@ describe('cacheHeadersForObject', () => {
 		});
 	});
 
-	test('defaults live URLs to browser revalidation with a short edge TTL', () => {
+	test('uses the same revalidate policy for browsers and the edge', () => {
 		expect(cacheHeadersForObject(undefined)).toEqual({
 			'Cache-Control': MUTABLE_CACHE_CONTROL,
-			'Cloudflare-CDN-Cache-Control': EDGE_MUTABLE_CACHE_CONTROL,
-			'CDN-Cache-Control': EDGE_MUTABLE_CACHE_CONTROL,
+			'Cloudflare-CDN-Cache-Control': MUTABLE_CACHE_CONTROL,
+			'CDN-Cache-Control': MUTABLE_CACHE_CONTROL,
 		});
 		expect(MUTABLE_CACHE_CONTROL).toBe('public, max-age=0, must-revalidate');
 	});
 
-	test('honors an explicit mutable Cache-Control on the object', () => {
+	test('honors an explicit Cache-Control on the object for all cache headers', () => {
 		const stored = 'public, max-age=60, must-revalidate';
-		expect(cacheHeadersForObject(stored)['Cache-Control']).toBe(stored);
-		expect(cacheHeadersForObject(stored)['Cloudflare-CDN-Cache-Control']).toBe(EDGE_MUTABLE_CACHE_CONTROL);
+		expect(cacheHeadersForObject(stored)).toEqual({
+			'Cache-Control': stored,
+			'Cloudflare-CDN-Cache-Control': stored,
+			'CDN-Cache-Control': stored,
+		});
+	});
+});
+
+describe('etagMatches', () => {
+	test('matches weak and strong tags', () => {
+		expect(etagMatches('"abc"', '"abc"')).toBe(true);
+		expect(etagMatches('W/"abc"', '"abc"')).toBe(true);
+		expect(etagMatches('"abc"', 'W/"abc"')).toBe(true);
+		expect(etagMatches('"old"', '"new"')).toBe(false);
+		expect(etagMatches('*', '"abc"')).toBe(true);
 	});
 });
 
@@ -60,19 +73,18 @@ describe('notModifiedResponse', () => {
 		expect(response?.status).toBe(304);
 	});
 
+	test('returns 304 for a weak If-None-Match', () => {
+		const request = new Request('https://cdn.designxdevelop.com/file.js', {
+			headers: { 'If-None-Match': 'W/"abc"' },
+		});
+		expect(notModifiedResponse(request, '"abc"', new Headers())?.status).toBe(304);
+	});
+
 	test('returns null when the ETag does not match', () => {
 		const request = new Request('https://cdn.designxdevelop.com/file.js', {
 			headers: { 'If-None-Match': '"old"' },
 		});
 		expect(notModifiedResponse(request, '"new"', new Headers())).toBeNull();
-	});
-});
-
-describe('encodedPathFallback', () => {
-	test('returns the raw path when it differs from the decoded path', () => {
-		const request = new Request('https://cdn.designxdevelop.com/heard/My%20File.js');
-		expect(encodedPathFallback(request, 'heard/My File.js')).toBe('heard/My%20File.js');
-		expect(encodedPathFallback(request, 'heard/My%20File.js')).toBeNull();
 	});
 });
 
@@ -91,6 +103,7 @@ describe('applyPublicCacheHeaders', () => {
 		expect(headers.get('ETag')).toBe('"etag"');
 		expect(headers.get('Cache-Tag')).toBe('dxd-cdn:heard');
 		expect(headers.get('Cache-Control')).toBe(MUTABLE_CACHE_CONTROL);
+		expect(headers.get('Cloudflare-CDN-Cache-Control')).toBe(MUTABLE_CACHE_CONTROL);
 		expect(headers.get('Last-Modified')).toBe('Thu, 01 Jan 2026 00:00:00 GMT');
 	});
 });
