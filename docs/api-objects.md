@@ -45,9 +45,11 @@ Body: raw bytes.
 | Versioned / hashed files (`v12.json`, `personalization.abc123.js`) | `public, max-age=31536000, immutable` |
 | Mutable “live” pointers (`config.json`, `personalization.js`) | `public, max-age=0, must-revalidate` (this is also the PUT default) |
 
-Public GET honors the stored value for browsers. Mutable objects also get `Cloudflare-CDN-Cache-Control: public, max-age=60` so the edge can absorb repeat hits without pinning a stale copy for a year. `If-None-Match` returns `304` when the object is unchanged.
+Public GET honors the stored value for **all** of `Cache-Control`, `CDN-Cache-Control`, and `Cloudflare-CDN-Cache-Control`. Live defaults revalidate (`max-age=0, must-revalidate`); hashed snapshots are `immutable`. `If-None-Match` returns `304` when the object is unchanged (R2 conditional GET, no body download).
 
-`@dxd/cdn` exports `MUTABLE_CACHE_CONTROL`, `IMMUTABLE_CACHE_CONTROL`, and `publishHashedAsset()` (Heard-style live + hashed snapshot). Client Workers on the same Cloudflare account can skip HTTP auth and bind `CdnObjects` — see [connect-a-worker.md](./connect-a-worker.md).
+`@dxd/cdn` exports `MUTABLE_CACHE_CONTROL`, `IMMUTABLE_CACHE_CONTROL`, and `publishHashedAsset()` (Heard-style live + hashed snapshot). Client Workers on the same Cloudflare account can skip HTTP auth and bind `CdnObjects` — that binding can write **any** key in the bucket; see [connect-a-worker.md](./connect-a-worker.md).
+
+Objects already stored as `immutable` (old PUT default, rclone) stay sticky until you overwrite them. Republish live keys after deploying this Worker.
 
 ## GET `/api/objects?key=…&as=meta|body`
 

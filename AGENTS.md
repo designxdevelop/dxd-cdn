@@ -134,7 +134,7 @@ try {
 - Set cache headers appropriately:
   ```javascript
   'Cache-Control': 'public, max-age=31536000, immutable'  // Static assets
-  'Cache-Control': 'no-cache'                              // API responses
+  'Cache-Control': 'no-store'                              // API responses
   ```
 
 ### Import Organization
@@ -216,8 +216,8 @@ GitHub proxy follows: `/:repo/:version/:filepath`
 ### Caching Strategy
 - GitHub releases cached 5 minutes in-memory
 - Hashed / versioned assets: 1 year `immutable`
-- Live objects (`config.json`, `personalization.js`, web uploads): browsers revalidate (`max-age=0, must-revalidate`); Cloudflare edge keeps a ~60s copy
-- API list/stats responses use `no-cache`
+- Live objects (`config.json`, `personalization.js`, web uploads): browsers revalidate (`max-age=0, must-revalidate`); no timed Cloudflare edge copy
+- API list/stats responses use `no-store`
 
 ## Cursor Cloud specific instructions
 

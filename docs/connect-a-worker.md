@@ -60,7 +60,9 @@ Webflow / client sites keep a **stable** script tag:
 <script src="https://cdn.designxdevelop.com/heard/hp/prod/personalization.js" async></script>
 ```
 
-Live keys use `Cache-Control: public, max-age=0, must-revalidate`. Browsers revalidate on the next page load — no hard refresh, no `?v=` on the embed. Hashed snapshots stay `immutable` for rollback.
+Live keys use `Cache-Control: public, max-age=0, must-revalidate` on the browser **and** Cloudflare cache headers. Browsers revalidate on the next page load — no hard refresh, no `?v=` on the embed. There is no 60s edge copy of live files; each GET hits the Worker/R2 (usually a cheap `304`). Hashed snapshots stay `immutable` for rollback.
+
+After this Worker is deployed, **republish existing live keys** (Heard `personalization.js`, Studio `config.json`, etc.). Objects already stored as `immutable` stay sticky until overwritten. Browsers that already cached those URLs as immutable also need that republish.
 
 ### Secrets
 
@@ -80,6 +82,8 @@ Until `@dxd/cdn` is on a registry:
 ## 2. Bind a client Worker (no password on the Worker)
 
 Same Cloudflare account as `dxd-cdn`. The Worker talks to CDN over a [service binding](https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/rpc/) — nothing goes over the public internet, and `UPLOAD_PASSWORD` does not live in the client Worker.
+
+**Binding `CdnObjects` can put/get every key in the bucket.** Only bind Workers you trust; there is no per-client prefix check.
 
 **dxd-cdn** already exports `CdnObjects`.
 
@@ -126,11 +130,11 @@ CORS is `*`. Mutable files revalidate; hashed files are cached for a year.
 
 ## Cache in one sentence
 
-| Object | Browser | Cloudflare edge |
+| Object | Browser | Cloudflare |
 | --- | --- | --- |
-| Live pointer (`personalization.js`, `config.json`, `/upload` files) | Revalidate every time (`max-age=0, must-revalidate`) | ~60s |
+| Live pointer (`personalization.js`, `config.json`, `/upload` files) | Revalidate every navigation (`max-age=0, must-revalidate`) | Same header; no timed edge copy |
 | Hashed / versioned (`*.abc123.js`, GitHub `/:repo/:version/:file`) | 1 year `immutable` | 1 year `immutable` |
 
-Overwrite the live key and the next navigation sees the new bytes. Instant edge invalidation (purge on PUT) is a follow-up; today the edge copy is only 60 seconds.
+Overwrite the live key and the next navigation sees the new bytes (or a `304` if nothing changed). Do not turn on Workers Cache for live URLs until there is purge-on-PUT — a 60s edge copy would hide publishes.
 
 See [api-objects.md](./api-objects.md) for headers and the HTTP contract.

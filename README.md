@@ -226,8 +226,8 @@ Examples:
 ### Caching Strategy
 - GitHub releases cached 5 minutes in-memory
 - Hashed / versioned assets: 1 year `immutable`
-- Live objects (`config.json`, `personalization.js`, web uploads): browsers revalidate (`max-age=0, must-revalidate`); Cloudflare edge keeps a ~60s copy
-- API list/stats responses use `no-cache`
+- Live objects (`config.json`, `personalization.js`, web uploads): browsers revalidate (`max-age=0, must-revalidate`); no timed Cloudflare edge copy
+- API list/stats responses use `no-store`
 
 See [docs/api-objects.md](docs/api-objects.md) and [docs/connect-a-worker.md](docs/connect-a-worker.md).
 

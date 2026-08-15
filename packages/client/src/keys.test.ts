@@ -23,6 +23,11 @@ describe('hashedFilename', () => {
   it('appends when there is no extension', () => {
     expect(hashedFilename('platform', 'deadbeef')).toBe('platform.deadbeef');
   });
+
+  it('rejects hashes that are not alphanumeric', () => {
+    expect(() => hashedFilename('personalization.js', 'abc-123')).toThrow(/Invalid hashed filename/);
+    expect(() => hashedFilename('personalization.js', '../x')).toThrow(/Invalid hashed filename/);
+  });
 });
 
 describe('MUTABLE_CACHE_CONTROL', () => {
