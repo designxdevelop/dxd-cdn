@@ -20,7 +20,7 @@ Query `?password=` also works (same secret as `/upload`).
 | --- | --- |
 | `acme/brochure/prod/hero.webp` | Client site assets |
 | `dxd-studio/platform.js` | Shared Studio embed loader (one file, all products) |
-| `dxd-studio/countdown/prod/widgets/{id}/config.json` | Live widget config (short TTL) |
+| `dxd-studio/countdown/prod/widgets/{id}/config.json` | Live widget config (revalidate) |
 | `dxd-studio/countdown/prod/widgets/{id}/v12.json` | Immutable publish snapshot |
 
 Stay under a dedicated `{client}` prefix so projects never collide.
@@ -33,19 +33,23 @@ Overwrite by default (needed so “publish again” updates the same live URL).
 | --- | --- |
 | `X-DXD-Object-Key` | Object key (required) |
 | `Content-Type` | Stored + served content type |
-| `X-DXD-Cache-Control` | Stored on the object; honored on public GET |
+| `X-DXD-Cache-Control` | One of the two policies below (omit for live default). Anything else is 400. |
 | `X-DXD-Overwrite` | `true` (default) or `false` (409 if exists) |
 
 Body: raw bytes.
 
 **Cache policies apps should choose:**
 
-| Use | `Cache-Control` |
+| Use | `Cache-Control` (`X-DXD-Cache-Control`) |
 | --- | --- |
-| Versioned / hashed files (`v12.json`, `platform.abc123.js`) | `public, max-age=31536000, immutable` |
-| Mutable “live” pointers (`config.json`, `platform.js`) | `public, max-age=60, must-revalidate` |
+| Versioned / hashed files (`v12.json`, `personalization.abc123.js`) | `public, max-age=31536000, immutable` |
+| Mutable “live” pointers (`config.json`, `personalization.js`) | `public, max-age=0, must-revalidate` (this is also the PUT default) |
 
-Public GET responses use the object's stored `Cache-Control` (fallback: 1 year).
+PUT allowlists only those two strings. Public GET honors the stored value for **all** of `Cache-Control`, `CDN-Cache-Control`, and `Cloudflare-CDN-Cache-Control`. `If-None-Match` / `If-Modified-Since` return `304` when the object is unchanged (R2 conditional GET, no body download).
+
+`@dxd/cdn` exports `MUTABLE_CACHE_CONTROL`, `IMMUTABLE_CACHE_CONTROL`, and `publishHashedAsset()` (Heard-style live + hashed snapshot). Client Workers on the same Cloudflare account can skip HTTP auth and bind `CdnObjects` — that binding can write **any** key in the bucket; see [connect-a-worker.md](./connect-a-worker.md).
+
+Objects already stored as `immutable` (old PUT default, rclone) stay sticky in R2 until you overwrite them. Republish live keys after deploying this Worker. Browsers that already cached a URL as `immutable` will not revalidate — use a new hashed/versioned URL or purge for those clients.
 
 ## GET `/api/objects?key=…&as=meta|body`
 
@@ -85,4 +89,6 @@ Snippet stays stable — **no version in the HTML**. One shared loader; widget i
 <div class="dxd-app-34fd47e8-15e7-4b0b-89e0-32aa4ccc5bf2" data-dxd-app-lazy></div>
 ```
 
-`platform.js` discovers `.dxd-app-{publicId}` nodes and fetches that widget's `config.json`. Republish overwrites `config.json` (short TTL) so visitors pick up changes without pasting a new snippet. Immutable `v{n}.json` files remain for rollback/history.
+`platform.js` discovers `.dxd-app-{publicId}` nodes and fetches that widget's `config.json`. Republish overwrites `config.json` (browsers revalidate; no version in the snippet). Immutable `v{n}.json` files remain for rollback/history.
+
+Connecting a new Studio app or client Worker: [connect-a-worker.md](./connect-a-worker.md).

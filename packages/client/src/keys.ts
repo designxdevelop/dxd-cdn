@@ -1,11 +1,8 @@
 /** Long-lived versioned / content-hashed assets */
 export const IMMUTABLE_CACHE_CONTROL = 'public, max-age=31536000, immutable';
 
-/**
- * Mutable “live” objects (config.json, platform.js).
- * Short TTL so republish is visible without changing embed snippets.
- */
-export const MUTABLE_CACHE_CONTROL = 'public, max-age=60, must-revalidate';
+/** Mutable live objects. Browsers revalidate on each navigation. */
+export const MUTABLE_CACHE_CONTROL = 'public, max-age=0, must-revalidate';
 
 /** @deprecated Use MUTABLE_CACHE_CONTROL */
 export const LATEST_CACHE_CONTROL = MUTABLE_CACHE_CONTROL;
@@ -25,6 +22,20 @@ export function joinKey(...parts: Array<string | number>): string {
     throw new Error(`Invalid CDN object key: ${JSON.stringify(parts)}`);
   }
   return key;
+}
+
+/**
+ * `personalization.js` + `abc123def456` → `personalization.abc123def456.js`
+ */
+export function hashedFilename(liveName: string, hash: string): string {
+  const trimmed = String(liveName).replace(/^\/+|\/+$/g, '');
+  const digest = String(hash);
+  if (!trimmed || !/^[a-zA-Z0-9]+$/.test(digest)) {
+    throw new Error(`Invalid hashed filename: ${JSON.stringify({ liveName, hash })}`);
+  }
+  const dot = trimmed.lastIndexOf('.');
+  if (dot <= 0) return `${trimmed}.${digest}`;
+  return `${trimmed.slice(0, dot)}.${digest}${trimmed.slice(dot)}`;
 }
 
 /** Public URL; optional `?v=` for extra busting of mutable objects. */

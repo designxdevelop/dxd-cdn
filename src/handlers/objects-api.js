@@ -9,20 +9,35 @@
  *   dxd-studio/countdown/prod/widgets/{id}/config.json
  */
 
-import { CONTENT_TYPES } from '../config/constants.js';
+import { loadObjectBody, loadObjectMeta, objectErrorMessage, objectErrorStatus, storeObject } from '../services/objects.js';
 import { getCorsHeaders } from '../utils/cors.js';
+
+function jsonHeaders() {
+	return {
+		'Content-Type': 'application/json',
+		'Cache-Control': 'no-store',
+		...getCorsHeaders(),
+	};
+}
 
 function unauthorized() {
 	return new Response(JSON.stringify({ error: 'Unauthorized' }), {
 		status: 401,
-		headers: { 'Content-Type': 'application/json', ...getCorsHeaders() },
+		headers: jsonHeaders(),
 	});
 }
 
 function badRequest(message) {
 	return new Response(JSON.stringify({ error: message }), {
 		status: 400,
-		headers: { 'Content-Type': 'application/json', ...getCorsHeaders() },
+		headers: jsonHeaders(),
+	});
+}
+
+function objectFailResponse(result) {
+	return new Response(JSON.stringify({ error: objectErrorMessage(result.code), key: result.key }), {
+		status: objectErrorStatus(result.code),
+		headers: jsonHeaders(),
 	});
 }
 
@@ -38,24 +53,6 @@ export function isAuthorizedUpload(request, url, env) {
 	const bearer = header.startsWith('Bearer ') ? header.slice(7) : '';
 	const queryPassword = url.searchParams.get('password') || '';
 	return bearer === env.UPLOAD_PASSWORD || queryPassword === env.UPLOAD_PASSWORD;
-}
-
-/**
- * Normalize and validate object keys. Rejects path traversal.
- * @param {string} path
- * @returns {string|null}
- */
-export function normalizeObjectKey(path) {
-	if (!path || typeof path !== 'string') return null;
-	const cleaned = path.replace(/^\/+/, '').replace(/\\/g, '/');
-	if (!cleaned || cleaned.includes('..') || cleaned.startsWith('api/')) return null;
-	return cleaned;
-}
-
-function contentTypeForKey(key, explicit) {
-	if (explicit) return explicit;
-	const extension = key.split('.').pop()?.toLowerCase() || '';
-	return CONTENT_TYPES[extension] || 'application/octet-stream';
 }
 
 /**
@@ -88,56 +85,45 @@ export async function handlePutObjectApi(request, env, url) {
 		} catch {
 			return badRequest('Invalid JSON envelope');
 		}
-		key = normalizeObjectKey(payload.key);
-		if (!key) return badRequest('Invalid or missing key');
-		contentType = payload.contentType || contentTypeForKey(key);
-		cacheControl = payload.cacheControl || undefined;
+		if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+			return badRequest('Invalid JSON envelope');
+		}
+		key = payload.key;
+		contentType = payload.contentType;
+		cacheControl = payload.cacheControl;
 		overwrite = payload.overwrite !== false;
-		if (payload.encoding === 'base64') {
-			const binary = Uint8Array.from(atob(String(payload.body || '')), (c) => c.charCodeAt(0));
-			body = binary;
-		} else {
-			body = String(payload.body ?? '');
+		try {
+			if (payload.encoding === 'base64') {
+				body = Uint8Array.from(atob(String(payload.body || '')), (c) => c.charCodeAt(0));
+			} else {
+				body = String(payload.body ?? '');
+			}
+		} catch {
+			return badRequest('Invalid JSON envelope');
 		}
 	} else {
-		key = normalizeObjectKey(request.headers.get('X-DXD-Object-Key') || url.searchParams.get('key') || '');
-		if (!key) return badRequest('Missing X-DXD-Object-Key');
-		contentType = contentTypeForKey(key, request.headers.get('Content-Type') || undefined);
+		key = request.headers.get('X-DXD-Object-Key') || url.searchParams.get('key') || '';
+		contentType = request.headers.get('Content-Type') || undefined;
 		cacheControl = request.headers.get('X-DXD-Cache-Control') || undefined;
 		overwrite = request.headers.get('X-DXD-Overwrite') !== 'false';
 		body = await request.arrayBuffer();
 	}
 
-	if (!overwrite) {
-		const existing = await env.CDN_BUCKET.head(key);
-		if (existing) {
-			return new Response(JSON.stringify({ error: 'Object exists', key }), {
-				status: 409,
-				headers: { 'Content-Type': 'application/json', ...getCorsHeaders() },
-			});
-		}
-	}
-
-	await env.CDN_BUCKET.put(key, body, {
-		httpMetadata: {
-			contentType,
-			cacheControl: cacheControl || 'public, max-age=31536000, immutable',
-		},
+	const result = await storeObject(env, {
+		key,
+		body,
+		contentType,
+		cacheControl,
+		overwrite,
+		origin: url.origin,
 	});
 
-	const origin = url.origin;
-	return new Response(
-		JSON.stringify({
-			ok: true,
-			key,
-			url: `${origin}/${key}`,
-			cacheControl: cacheControl || 'public, max-age=31536000, immutable',
-		}),
-		{
-			status: 201,
-			headers: { 'Content-Type': 'application/json', ...getCorsHeaders() },
-		},
-	);
+	if (!result.ok) return objectFailResponse(result);
+
+	return new Response(JSON.stringify(result), {
+		status: 201,
+		headers: jsonHeaders(),
+	});
 }
 
 /**
@@ -147,38 +133,25 @@ export async function handlePutObjectApi(request, env, url) {
 export async function handleGetObjectApi(request, env, url) {
 	if (!isAuthorizedUpload(request, url, env)) return unauthorized();
 
-	const key = normalizeObjectKey(url.searchParams.get('key') || '');
-	if (!key) return badRequest('Missing key');
-
-	const object = await env.CDN_BUCKET.get(key);
-	if (!object) {
-		return new Response(JSON.stringify({ error: 'Not found', key }), {
-			status: 404,
-			headers: { 'Content-Type': 'application/json', ...getCorsHeaders() },
-		});
-	}
-
+	const key = url.searchParams.get('key') || '';
 	const as = url.searchParams.get('as') || 'meta';
+
 	if (as === 'body') {
+		const result = await loadObjectBody(env, key);
+		if (!result.ok) return objectFailResponse(result);
 		const headers = new Headers({
-			'Content-Type': object.httpMetadata?.contentType || 'application/octet-stream',
+			'Content-Type': result.object.httpMetadata?.contentType || 'application/octet-stream',
+			'Cache-Control': 'no-store',
 			...getCorsHeaders(),
 		});
-		return new Response(object.body, { headers });
+		return new Response(result.object.body, { headers });
 	}
 
-	return new Response(
-		JSON.stringify({
-			key,
-			size: object.size,
-			etag: object.httpEtag,
-			uploaded: object.uploaded,
-			contentType: object.httpMetadata?.contentType || null,
-			cacheControl: object.httpMetadata?.cacheControl || null,
-			url: `${url.origin}/${key}`,
-		}),
-		{
-			headers: { 'Content-Type': 'application/json', ...getCorsHeaders() },
-		},
-	);
+	const result = await loadObjectMeta(env, key, url.origin);
+	if (!result.ok) return objectFailResponse(result);
+
+	const { ok: _ok, ...meta } = result;
+	return new Response(JSON.stringify(meta), {
+		headers: jsonHeaders(),
+	});
 }

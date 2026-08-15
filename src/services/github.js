@@ -1,17 +1,58 @@
 import { DEFAULT_GITHUB_OWNER, GITHUB_CACHE_TTL } from '../config/constants.js';
 import { minifyContent } from './minification.js';
 
-// Cache for GitHub data (in-memory, will reset on worker restart)
 const GITHUB_CACHE = new Map();
+const MAX_GITHUB_REDIRECTS = 5;
+
+/**
+ * @param {string} hostname
+ * @returns {boolean}
+ */
+export function isAllowedGithubHost(hostname) {
+	if (!hostname) return false;
+	const host = hostname.toLowerCase();
+	return host === 'github.com' || host.endsWith('.github.com') || host === 'githubusercontent.com' || host.endsWith('.githubusercontent.com');
+}
+
+/**
+ * Follow GitHub redirects without dropping Authorization on cross-origin hops.
+ * @param {string} url
+ * @param {Object} env
+ * @returns {Promise<Response>}
+ */
+export async function fetchGithub(url, env) {
+	const headers = {
+		'User-Agent': 'DXD-CDN',
+		Authorization: `token ${env.GITHUB_TOKEN}`,
+	};
+
+	let current = url;
+	try {
+		for (let hop = 0; hop <= MAX_GITHUB_REDIRECTS; hop++) {
+			const response = await fetch(current, { headers, redirect: 'manual' });
+			if (response.status < 300 || response.status >= 400) {
+				return response;
+			}
+
+			const location = response.headers.get('Location');
+			if (!location) return response;
+
+			const next = new URL(location, current);
+			if (next.protocol !== 'https:' || !isAllowedGithubHost(next.hostname)) {
+				throw new Error(`Blocked GitHub redirect to ${next.protocol}//${next.hostname}`);
+			}
+			current = next.toString();
+		}
+
+		throw new Error('Too many GitHub redirects');
+	} catch (error) {
+		console.error('GitHub fetch failed:', { url: current, error: error.message });
+		throw error;
+	}
+}
 
 export async function getCommit(repo, commit, env) {
-	// Support both short and full hashes
-	const response = await fetch(`https://api.github.com/repos/${DEFAULT_GITHUB_OWNER}/${repo}/commits/${commit}`, {
-		headers: {
-			'User-Agent': 'DXD-CDN',
-			Authorization: `token ${env.GITHUB_TOKEN}`,
-		},
-	});
+	const response = await fetchGithub(`https://api.github.com/repos/${DEFAULT_GITHUB_OWNER}/${repo}/commits/${commit}`, env);
 
 	if (!response.ok) {
 		throw new Error('Invalid commit hash');
@@ -28,7 +69,6 @@ export async function getLatestRelease(repo, env) {
 	const cacheKey = `${DEFAULT_GITHUB_OWNER}/${repo}`;
 	const now = Date.now();
 
-	// Check cache first
 	if (GITHUB_CACHE.has(cacheKey)) {
 		const cached = GITHUB_CACHE.get(cacheKey);
 		if (now - cached.timestamp < GITHUB_CACHE_TTL) {
@@ -36,13 +76,7 @@ export async function getLatestRelease(repo, env) {
 		}
 	}
 
-	// Fetch latest release from GitHub
-	const response = await fetch(`https://api.github.com/repos/${DEFAULT_GITHUB_OWNER}/${repo}/releases/latest`, {
-		headers: {
-			'User-Agent': 'DXD-CDN',
-			Authorization: `token ${env.GITHUB_TOKEN}`,
-		},
-	});
+	const response = await fetchGithub(`https://api.github.com/repos/${DEFAULT_GITHUB_OWNER}/${repo}/releases/latest`, env);
 
 	if (!response.ok) {
 		throw new Error('Failed to fetch release data from GitHub');
@@ -50,7 +84,6 @@ export async function getLatestRelease(repo, env) {
 
 	const data = await response.json();
 
-	// Cache the result
 	GITHUB_CACHE.set(cacheKey, {
 		timestamp: now,
 		data: data,
@@ -88,12 +121,7 @@ export async function getFileFromGitHub(repo, version, filePath, env, ctx, shoul
 		? `https://raw.githubusercontent.com/${DEFAULT_GITHUB_OWNER}/${repo}/${targetVersion}/${filePath}`
 		: `https://raw.githubusercontent.com/${DEFAULT_GITHUB_OWNER}/${repo}/v${targetVersion}/${filePath}`;
 
-	const response = await fetch(rawUrl, {
-		headers: {
-			'User-Agent': 'DXD-CDN',
-			Authorization: `token ${env.GITHUB_TOKEN}`,
-		},
-	});
+	const response = await fetchGithub(rawUrl, env);
 
 	if (!response.ok) {
 		throw new Error('Failed to fetch file from GitHub');

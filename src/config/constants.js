@@ -62,3 +62,14 @@ export const COMPRESSIBLE_TYPES = new Set([
 
 export const DEFAULT_GITHUB_OWNER = 'austin-thesing';
 export const GITHUB_CACHE_TTL = 300000; // 5 minutes in milliseconds
+
+/** Public origin used in RPC/service-binding responses (HTTP handlers use the request origin). */
+export const DEFAULT_CDN_ORIGIN = 'https://cdn.designxdevelop.com';
+
+/**
+ * Mutable live URLs. Browsers revalidate on each navigation.
+ */
+export const MUTABLE_CACHE_CONTROL = 'public, max-age=0, must-revalidate';
+
+/** Hashed / versioned snapshots that never change at that key. */
+export const IMMUTABLE_CACHE_CONTROL = 'public, max-age=31536000, immutable';

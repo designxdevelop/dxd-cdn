@@ -10,6 +10,8 @@ A hybrid CDN using Cloudflare Workers and R2 storage. Supports file upload/brows
 - 📊 File analytics tracking (request count, first/last served)
 - 🗑️ File deletion via API
 - 🎬 MP4 streaming with range request support
+- 🔁 Live URLs revalidate in the browser (republish without a hard refresh)
+- 📦 Objects API + `@dxd/cdn` client (and optional `CdnObjects` Worker binding)
 
 ### GitHub Proxy (Legacy)
 - 🌍 Global CDN via Cloudflare's edge network
@@ -29,24 +31,31 @@ A hybrid CDN using Cloudflare Workers and R2 storage. Supports file upload/brows
 src/
   index.js              # Main entry point, request routing
   config/
-    constants.js        # Content types, preview types, GitHub config
+    constants.js        # Content types, preview types, GitHub config, cache policies
   handlers/
-    api.js              # API route handlers
+    api.js              # /api/files, /api/file-stats, …
     browse.js           # File browser UI
+    objects-api.js      # PUT|GET /api/objects (HTTP adapter)
     responses.js        # R2 and GitHub response handling
     streaming.js        # MP4 streaming support
     upload.js           # File upload handling
   services/
+    cdn-objects.js      # CdnObjects WorkerEntrypoint (service binding)
     github.js           # GitHub API integration
     minification.js     # Basic JS/CSS minification
+    objects.js          # R2 put/get (no HTTP statuses)
   templates/
     browse.js           # Browse page HTML templates
     pages.js            # Special pages (speed-test, convert)
     upload.js           # Upload page HTML templates
   utils/
+    cache.js            # Public GET Cache-Control / ETag / 304
     compression.js      # Gzip compression utilities
     cors.js             # CORS handling utilities
     files.js            # File operations, fuzzy search, analytics
+    r2.js               # Key fallback + conditional GET
+packages/
+  client/               # @dxd/cdn TypeScript client
 ```
 
 ## Setup Instructions
@@ -138,6 +147,30 @@ https://your-domain.com/acme/website/prod/hero-image.webp
 Query parameters:
 - `?download=true` - Force download instead of inline display
 
+Public GET honors the object's stored `Cache-Control`. Unchanged files return `304` on `If-None-Match` or `If-Modified-Since`.
+
+### Objects API
+
+Programmatic publish/pull for Studio, Heard, client Workers, and CI. Prefer this over rclone so each object gets a `Cache-Control`.
+
+```
+PUT /api/objects
+Authorization: Bearer <UPLOAD_PASSWORD>
+X-DXD-Object-Key: heard/hp/prod/personalization.js
+X-DXD-Cache-Control: public, max-age=0, must-revalidate   # omit for this default
+```
+
+`X-DXD-Cache-Control` allowlists two values (anything else is 400):
+
+| Use | Value |
+| --- | --- |
+| Live pointer (`config.json`, `personalization.js`, `/upload`) | `public, max-age=0, must-revalidate` (PUT default) |
+| Hashed / versioned snapshot | `public, max-age=31536000, immutable` |
+
+Shared client: `packages/client` (`@dxd/cdn`) — `putObject`, `publishHashedAsset` (snapshot **then** live), `publishVersioned`. Same-account Workers can bind `CdnObjects` instead of sending the password over HTTP; that binding can write **any** key in the bucket.
+
+Headers and Worker recipe: [docs/api-objects.md](docs/api-objects.md), [docs/connect-a-worker.md](docs/connect-a-worker.md).
+
 ### GitHub Proxy (Legacy)
 
 ```
@@ -172,10 +205,12 @@ Visit `https://your-domain.com/convert` for a web interface to:
 
 ## API Endpoints
 
-All API endpoints require `?password=XXX` for authentication.
+Auth: `Authorization: Bearer <UPLOAD_PASSWORD>` or `?password=` (same secret as `/upload`). JSON APIs send `Cache-Control: no-store`.
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
+| `/api/objects` | PUT | Store an object (`X-DXD-Object-Key`, optional `X-DXD-Cache-Control` / `X-DXD-Overwrite`) |
+| `/api/objects` | GET | Authenticated meta or body (`?key=` and `as=meta` or `as=body`) |
 | `/api/files` | GET | List files with optional search/filter |
 | `/api/file-stats` | GET | Get analytics for a specific file |
 | `/api/file-content` | GET | Get HTML file content |
@@ -195,6 +230,10 @@ All API endpoints require `?password=XXX` for authentication.
 **`/api/delete-file`**
 - `file` - Full file path to delete
 
+**`/api/objects`**
+- `key` - Object key (or `X-DXD-Object-Key` on PUT)
+- `as` - `meta` (default) or `body` on GET
+
 ## Development
 
 ```bash
@@ -209,6 +248,7 @@ npm run deploy # Deploy to Cloudflare
 | `UPLOAD_PASSWORD` | Yes | Password for upload/browse/API access |
 | `GITHUB_TOKEN` | For GitHub proxy | GitHub Personal Access Token |
 | `ENVIRONMENT` | No | Set to "production" in prod |
+| `PUBLIC_ORIGIN` | No | Public origin in RPC/service-binding URLs (HTTP handlers use the request origin). Production: `https://cdn.designxdevelop.com` |
 
 ## File Path Convention
 
@@ -221,6 +261,18 @@ Examples:
 - `acme/website/prod/logo.svg`
 - `acme/website/staging/hero-video.mp4`
 - `bigcorp/landing-page/prod/styles.css`
+
+### Caching Strategy
+
+- GitHub releases cached 5 minutes in-memory
+- Hashed / versioned assets (and GitHub `/:repo/:version/:file`): 1 year `immutable`
+- Live objects (`config.json`, `personalization.js`, web uploads): `public, max-age=0, must-revalidate` on browser **and** Cloudflare cache headers — no timed edge copy. Next navigation revalidates (`304` if unchanged)
+- PUT `/api/objects` allowlists only those two `Cache-Control` strings
+- API JSON responses use `no-store`
+
+After deploying this Worker, **republish existing live keys**. Overwriting R2 updates new visitors. Browsers that already stored the URL as `immutable` will not recheck until they drop that entry — those clients need a new URL (hashed/versioned filename) or an explicit cache purge.
+
+See [docs/api-objects.md](docs/api-objects.md) and [docs/connect-a-worker.md](docs/connect-a-worker.md).
 
 ## Limitations
 

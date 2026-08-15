@@ -1,4 +1,9 @@
-import { publicUrl } from './keys.js';
+import {
+  hashedFilename,
+  IMMUTABLE_CACHE_CONTROL,
+  MUTABLE_CACHE_CONTROL,
+  publicUrl,
+} from './keys.js';
 
 export type PutObjectInput = {
   key: string;
@@ -45,6 +50,19 @@ export type PublishVersionedInput = {
   versionedName?: string;
   immutableCacheControl: string;
   mutableCacheControl: string;
+};
+
+export type PublishHashedAssetInput = {
+  /** Directory prefix, e.g. `heard/hp/prod` */
+  prefix: string;
+  /** Stable live filename, e.g. `personalization.js` */
+  liveName: string;
+  body: string | Uint8Array | ArrayBuffer;
+  contentType: string;
+  /** Content hash (caller computes; 8–16 hex chars is typical). */
+  hash: string;
+  immutableCacheControl?: string;
+  mutableCacheControl?: string;
 };
 
 export type PublishVersionedResult = {
@@ -156,20 +174,55 @@ export class DxdCdnClient {
    */
   async publishVersioned(input: PublishVersionedInput): Promise<PublishVersionedResult> {
     const liveName = input.liveName ?? 'config.json';
-    const versionedName = (input.versionedName ?? 'v{version}.json').replace(
+    const snapshotName = (input.versionedName ?? 'v{version}.json').replace(
       '{version}',
       String(input.version),
     );
+    return this.publishLiveAndSnapshot({
+      prefix: input.prefix,
+      liveName,
+      snapshotName,
+      body: input.body,
+      contentType: input.contentType,
+      immutableCacheControl: input.immutableCacheControl,
+      mutableCacheControl: input.mutableCacheControl,
+    });
+  }
+
+  /**
+   * Hashed snapshot + overwrite of the stable live filename.
+   */
+  async publishHashedAsset(input: PublishHashedAssetInput): Promise<PublishVersionedResult> {
+    return this.publishLiveAndSnapshot({
+      prefix: input.prefix,
+      liveName: input.liveName,
+      snapshotName: hashedFilename(input.liveName, input.hash),
+      body: input.body,
+      contentType: input.contentType,
+      immutableCacheControl: input.immutableCacheControl ?? IMMUTABLE_CACHE_CONTROL,
+      mutableCacheControl: input.mutableCacheControl ?? MUTABLE_CACHE_CONTROL,
+    });
+  }
+
+  private async publishLiveAndSnapshot(input: {
+    prefix: string;
+    liveName: string;
+    snapshotName: string;
+    body: string | Uint8Array | ArrayBuffer;
+    contentType: string;
+    immutableCacheControl: string;
+    mutableCacheControl: string;
+  }): Promise<PublishVersionedResult> {
     const prefix = input.prefix.replace(/\/$/, '');
-    const versionedKey = `${prefix}/${versionedName}`;
-    const liveKey = `${prefix}/${liveName}`;
+    const versionedKey = `${prefix}/${input.snapshotName}`;
+    const liveKey = `${prefix}/${input.liveName}`;
 
     const versioned = await this.putObject({
       key: versionedKey,
       body: input.body,
       contentType: input.contentType,
       cacheControl: input.immutableCacheControl,
-      overwrite: true,
+      overwrite: false,
     });
 
     const live = await this.putObject({

@@ -1,7 +1,7 @@
 #:schema node_modules/wrangler/config-schema.json
 name = "dxd-cdn"
 main = "src/index.js"
-compatibility_date = "2024-12-05"
+compatibility_date = "2026-08-15"
 compatibility_flags = ["nodejs_compat"]
 
 # Custom domain configuration
@@ -17,6 +17,7 @@ bucket_name = "dxd-cdn"
 # Environment variables
 [vars]
 ENVIRONMENT = "production"
+PUBLIC_ORIGIN = "https://cdn.designxdevelop.com"
 
 # Secrets (set via: wrangler secret put UPLOAD_PASSWORD)
 # UPLOAD_PASSWORD - Required for /upload and /browse routes

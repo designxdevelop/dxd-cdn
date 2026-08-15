@@ -7,17 +7,22 @@
  * 3. Direct R2 file serving for uploaded assets
  */
 
+import { CONTENT_TYPES, IMMUTABLE_CACHE_CONTROL, MUTABLE_CACHE_CONTROL, PREVIEW_TYPES } from './config/constants.js';
+import { handleFilesApi, handleFileStatsApi, handleFileContentApi, handleDeleteFileApi } from './handlers/api.js';
+import { handleBrowseGet, handleBrowsePost } from './handlers/browse.js';
+import { handlePutObjectApi, handleGetObjectApi } from './handlers/objects-api.js';
 import { handleR2Response, handleGitHubResponse } from './handlers/responses.js';
+import { handleMp4Stream } from './handlers/streaming.js';
+import { handleUploadGet, handleUploadPost } from './handlers/upload.js';
+import { CdnObjects } from './services/cdn-objects.js';
 import { getLatestRelease } from './services/github.js';
 import { handleSpecialPages } from './templates/pages.js';
-import { CONTENT_TYPES, PREVIEW_TYPES } from './config/constants.js';
-import { handleUploadGet, handleUploadPost } from './handlers/upload.js';
-import { handleBrowseGet, handleBrowsePost } from './handlers/browse.js';
-import { handleFilesApi, handleFileStatsApi, handleFileContentApi, handleDeleteFileApi } from './handlers/api.js';
-import { handlePutObjectApi, handleGetObjectApi } from './handlers/objects-api.js';
-import { handleMp4Stream } from './handlers/streaming.js';
-import { handleCorsPreflightRequest, getCorsHeaders } from './utils/cors.js';
+import { applyPublicCacheHeaders, cacheHeadersForObject, etagMatches, notModifiedResponse } from './utils/cache.js';
+import { handleCorsPreflightRequest, getCorsHeaders, jsonApiHeaders } from './utils/cors.js';
 import { trackFileRequest } from './utils/files.js';
+import { failedOnlyIfStatus, getR2Object, hasR2Body, headR2Object } from './utils/r2.js';
+
+export { CdnObjects };
 
 export default {
 	async fetch(request, env, ctx) {
@@ -139,7 +144,10 @@ export default {
 				path: new URL(request.url).pathname,
 			});
 
-			return new Response(`Error: ${error.message}`, { status: 500 });
+			return new Response(JSON.stringify({ error: 'Internal Server Error' }), {
+				status: 500,
+				headers: jsonApiHeaders(),
+			});
 		}
 	},
 };
@@ -152,17 +160,18 @@ async function handleGitHubProxyRequest(request, env, ctx, url, path, pathParts)
 	// Try to get from cache first with ETag support
 	const cache = caches.default;
 	const cacheKey = new Request(url.toString(), request);
-	let response = await cache.match(cacheKey);
+	let response = null;
 
-	// Check if we have a fresh cache hit
-	if (response) {
-		const etag = request.headers.get('If-None-Match');
-		if (etag && response.headers.get('ETag') === etag) {
-			return new Response(null, { status: 304 });
+	if (pathParts[1] !== 'latest') {
+		response = await cache.match(cacheKey);
+		if (response) {
+			if (etagMatches(request.headers.get('If-None-Match'), response.headers.get('ETag'))) {
+				return new Response(null, { status: 304, headers: response.headers });
+			}
+			response = new Response(response.body, response);
+			response.headers.set('CF-Cache-Status', 'HIT');
+			return response;
 		}
-		response = new Response(response.body, response);
-		response.headers.set('CF-Cache-Status', 'HIT');
-		return response;
 	}
 
 	const repo = pathParts[0];
@@ -200,10 +209,10 @@ async function handleGitHubProxyRequest(request, env, ctx, url, path, pathParts)
 			response = await handleGitHubResponse(repo, version, filePath, env, ctx, shouldMinify, request);
 		}
 
-		// Preserve per-object Cache-Control from R2 when present; otherwise immutable default
 		const headers = new Headers(response.headers);
-		if (!headers.get('Cache-Control')) {
-			headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+		const cacheControl = version === 'latest' ? MUTABLE_CACHE_CONTROL : IMMUTABLE_CACHE_CONTROL;
+		for (const [name, value] of Object.entries(cacheHeadersForObject(cacheControl))) {
+			headers.set(name, value);
 		}
 		headers.set('Access-Control-Allow-Origin', '*');
 		headers.set('CF-Cache-Status', r2Object ? 'R2_HIT' : 'R2_MISS');
@@ -220,8 +229,9 @@ async function handleGitHubProxyRequest(request, env, ctx, url, path, pathParts)
 			statusText: response.statusText,
 		});
 
-		// Cache in Cloudflare's edge with ETag
-		ctx.waitUntil(cache.put(cacheKey, response.clone()));
+		if (version !== 'latest') {
+			ctx.waitUntil(cache.put(cacheKey, response.clone()));
+		}
 
 		return response;
 	} catch (error) {
@@ -243,43 +253,46 @@ async function handleGitHubProxyRequest(request, env, ctx, url, path, pathParts)
  * URL format: /:client/:project/:env/:file or any direct path
  */
 async function handleDirectR2Request(request, env, ctx, url, path) {
-	// Check for force download parameter
 	const forceDownload = url.searchParams.get('download') === 'true';
+	const extensionHint = path.split('.').pop().toLowerCase();
 
-	// Get the file from R2
-	const object = await env.CDN_BUCKET.get(path);
+	if (extensionHint === 'mp4') {
+		const found = await headR2Object(env.CDN_BUCKET, request, path);
+		if (!found.object) {
+			return new Response('File not found', { status: 404 });
+		}
+		return handleMp4Stream(request, found.object, env, found.key);
+	}
 
-	if (!object) {
+	const found = await getR2Object(env.CDN_BUCKET, request, path);
+	if (!found.object) {
 		return new Response('File not found', { status: 404 });
 	}
 
-	// Determine content type based on file extension
-	const extension = path.split('.').pop().toLowerCase();
-	const contentType = CONTENT_TYPES[extension] || 'application/octet-stream';
+	const { object, key } = found;
+	const extension = key.split('.').pop().toLowerCase();
+	const contentType = CONTENT_TYPES[extension] || object.httpMetadata?.contentType || 'application/octet-stream';
 
-	// Handle MP4 files with streaming support
-	if (extension === 'mp4') {
-		return handleMp4Stream(request, object, env, path);
-	}
-
-	// Prepare headers — honor per-object Cache-Control from R2 metadata when set
 	const headers = new Headers({
 		'Content-Type': contentType,
-		'Cache-Control': object.httpMetadata?.cacheControl || 'public, max-age=31536000',
-		ETag: object.httpEtag,
-		'Last-Modified': object.uploaded.toUTCString(),
 		'Access-Control-Allow-Origin': '*',
 	});
+	applyPublicCacheHeaders(headers, object, key);
 
-	// Set Content-Disposition based on file type and download parameter
 	if (forceDownload) {
-		headers.set('Content-Disposition', `attachment; filename="${path.split('/').pop()}"`);
+		headers.set('Content-Disposition', `attachment; filename="${key.split('/').pop()}"`);
 	} else if (PREVIEW_TYPES.has(extension)) {
 		headers.set('Content-Disposition', 'inline');
 	}
 
-	// Track file request (non-blocking)
-	trackFileRequest(env.CDN_BUCKET, path).catch((err) => {
+	if (!hasR2Body(object)) {
+		return new Response(null, { status: failedOnlyIfStatus(request), headers });
+	}
+
+	const notModified = notModifiedResponse(request, object.httpEtag, headers);
+	if (notModified) return notModified;
+
+	trackFileRequest(env.CDN_BUCKET, key).catch((err) => {
 		console.error('Error tracking file request:', err);
 	});
 

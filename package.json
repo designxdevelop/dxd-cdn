@@ -12,10 +12,11 @@
 		"dev": "wrangler dev",
 		"start": "wrangler dev",
 		"typecheck": "npm run typecheck -w @dxd/cdn",
-		"test": "npm run test -w @dxd/cdn"
+		"test": "npm run test -w @dxd/cdn && vitest run"
 	},
 	"devDependencies": {
-		"@cloudflare/workers-types": "^4.20250514.0",
-		"wrangler": "^4.59.3"
+		"@cloudflare/workers-types": "^5.20260815.1",
+		"vitest": "^4.1.10",
+		"wrangler": "^4.123.0"
 	}
 }
