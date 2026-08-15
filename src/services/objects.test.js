@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MUTABLE_CACHE_CONTROL } from '../config/constants.js';
-import { normalizeObjectKey, storeObject } from './objects-api.js';
+import { loadObjectMeta, normalizeObjectKey, storeObject } from '../services/objects.js';
 
 describe('normalizeObjectKey', () => {
 	it('rejects traversal and api/ prefixes', () => {
@@ -37,13 +37,41 @@ describe('storeObject', () => {
 		expect(puts[0].opts.httpMetadata.cacheControl).toBe(MUTABLE_CACHE_CONTROL);
 	});
 
-	it('returns 409 when overwrite is false and the key exists', async () => {
+	it('returns EXISTS when overwrite is false and the key exists', async () => {
 		const env = {
 			CDN_BUCKET: {
 				head: async () => ({ key: 'x' }),
 			},
 		};
 		const result = await storeObject(env, { key: 'x', body: 'y', overwrite: false });
-		expect(result).toEqual({ error: 'Object exists', status: 409, key: 'x' });
+		expect(result).toEqual({ ok: false, code: 'EXISTS', key: 'x' });
+	});
+});
+
+describe('loadObjectMeta', () => {
+	it('uses head instead of downloading the body', async () => {
+		const env = {
+			PUBLIC_ORIGIN: 'https://cdn.designxdevelop.com',
+			CDN_BUCKET: {
+				head: async () => ({
+					size: 12,
+					httpEtag: '"etag"',
+					uploaded: new Date('2026-01-01T00:00:00Z'),
+					httpMetadata: { contentType: 'text/plain', cacheControl: MUTABLE_CACHE_CONTROL },
+				}),
+				get: async () => {
+					throw new Error('get should not be called');
+				},
+			},
+		};
+
+		const result = await loadObjectMeta(env, 'heard/a.txt');
+		expect(result).toMatchObject({
+			ok: true,
+			key: 'heard/a.txt',
+			size: 12,
+			etag: '"etag"',
+			cacheControl: MUTABLE_CACHE_CONTROL,
+		});
 	});
 });
