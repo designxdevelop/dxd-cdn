@@ -207,8 +207,7 @@ export class DxdCdnClient {
   }
 
   /**
-   * Heard-style publish: hashed immutable snapshot + overwrite the stable live filename.
-   * Embeds keep `…/personalization.js`; the `.hash.js` copy is for rollback.
+   * Hashed snapshot + overwrite of the stable live filename.
    */
   async publishHashedAsset(input: PublishHashedAssetInput): Promise<PublishVersionedResult> {
     return this.publishVersioned({

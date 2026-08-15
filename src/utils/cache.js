@@ -1,15 +1,8 @@
 /**
- * Public-asset cache policy.
- *
- * Mutable live URLs must be visible after republish without a hard refresh.
- * Immutable hashed/versioned keys keep a long browser + edge TTL.
+ * Public GET cache policy: live URLs revalidate; hashed/versioned keys stay immutable.
  */
 
-import {
-	EDGE_MUTABLE_CACHE_CONTROL,
-	IMMUTABLE_CACHE_CONTROL,
-	MUTABLE_CACHE_CONTROL,
-} from '../config/constants.js';
+import { EDGE_MUTABLE_CACHE_CONTROL, MUTABLE_CACHE_CONTROL } from '../config/constants.js';
 
 /**
  * @param {string|null|undefined} value
@@ -20,7 +13,6 @@ export function isImmutableCacheControl(value) {
 }
 
 /**
- * First path segment as a Cache-Tag so a later purge can target one client prefix.
  * @param {string} key
  * @returns {string}
  */
@@ -39,11 +31,10 @@ export function cacheTagForKey(key) {
  */
 export function cacheHeadersForObject(storedCacheControl) {
 	if (isImmutableCacheControl(storedCacheControl)) {
-		const value = storedCacheControl || IMMUTABLE_CACHE_CONTROL;
 		return {
-			'Cache-Control': value,
-			'Cloudflare-CDN-Cache-Control': value,
-			'CDN-Cache-Control': value,
+			'Cache-Control': storedCacheControl,
+			'Cloudflare-CDN-Cache-Control': storedCacheControl,
+			'CDN-Cache-Control': storedCacheControl,
 		};
 	}
 

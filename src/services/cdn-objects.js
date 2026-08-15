@@ -1,23 +1,11 @@
-/**
- * Service-binding entrypoint so client Workers (Heard, Studio, future apps)
- * can put/pull objects without sending UPLOAD_PASSWORD over HTTP.
- *
- * Consumer wrangler.toml:
- *
- *   [[services]]
- *   binding = "DXD_CDN"
- *   service = "dxd-cdn"
- *   entrypoint = "CdnObjects"
- *
- *   await env.DXD_CDN.putObject({ key: 'heard/hp/prod/config.json', body, contentType: 'application/json' })
- */
-
 import { WorkerEntrypoint } from 'cloudflare:workers';
 import { loadObjectMeta, storeObject } from '../handlers/objects-api.js';
 
+/**
+ * Service-binding entrypoint for same-account Workers. See docs/connect-a-worker.md.
+ */
 export class CdnObjects extends WorkerEntrypoint {
 	/**
-	 * Put an object. Same-account Workers skip HTTP Bearer auth.
 	 * @param {{ key: string, body: ArrayBuffer|Uint8Array|string, contentType?: string, cacheControl?: string, overwrite?: boolean }} input
 	 * @returns {Promise<{ ok: true, key: string, url: string, cacheControl: string }>}
 	 */

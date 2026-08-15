@@ -23,12 +23,6 @@ export async function handleMp4Stream(request, object, env, path) {
 	});
 	applyPublicCacheHeaders(headers, object, path);
 
-	if (!request.headers.has('range')) {
-		const notModified = notModifiedResponse(request, object.httpEtag, headers);
-		if (notModified) return notModified;
-	}
-
-	// Handle range requests
 	if (request.headers.has('range')) {
 		try {
 			const range = request.headers.get('range');
@@ -106,7 +100,9 @@ export async function handleMp4Stream(request, object, env, path) {
 		}
 	}
 
-	// No range request - return full file
+	const notModified = notModifiedResponse(request, object.httpEtag, headers);
+	if (notModified) return notModified;
+
 	headers.set('Content-Length', object.size.toString());
 
 	// Track file request (non-blocking)

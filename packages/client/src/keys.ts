@@ -1,14 +1,10 @@
 /** Long-lived versioned / content-hashed assets */
 export const IMMUTABLE_CACHE_CONTROL = 'public, max-age=31536000, immutable';
 
-/**
- * Mutable “live” objects (config.json, platform.js, personalization.js).
- * Browsers revalidate on every navigation so a republish is visible without a hard refresh.
- * Pair with EDGE_MUTABLE_CACHE_CONTROL on the Worker response (set automatically on public GET).
- */
+/** Mutable live objects. Browsers revalidate on each navigation. */
 export const MUTABLE_CACHE_CONTROL = 'public, max-age=0, must-revalidate';
 
-/** Edge-only TTL the Worker applies to mutable public GETs. */
+/** Edge TTL the Worker applies to mutable public GETs. */
 export const EDGE_MUTABLE_CACHE_CONTROL = 'public, max-age=60';
 
 /** @deprecated Use MUTABLE_CACHE_CONTROL */
