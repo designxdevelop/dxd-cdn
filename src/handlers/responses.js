@@ -1,6 +1,7 @@
-import { CONTENT_TYPES } from '../config/constants.js';
-import { compress } from '../utils/compression.js';
+import { CONTENT_TYPES, IMMUTABLE_CACHE_CONTROL } from '../config/constants.js';
 import { getFileFromGitHub } from '../services/github.js';
+import { applyPublicCacheHeaders } from '../utils/cache.js';
+import { compress } from '../utils/compression.js';
 
 export async function handleR2Response(r2Object, extension, request) {
 	try {
@@ -27,22 +28,15 @@ export async function handleR2Response(r2Object, extension, request) {
 			responseBody = r2Object.body;
 		}
 
-		const cacheControl = r2Object.httpMetadata?.cacheControl || 'public, max-age=31536000, immutable';
-		const cdnMaxAge = /max-age=(\d+)/.exec(cacheControl)?.[1] || '31536000';
-
 		let headers = new Headers({
 			'Content-Type': CONTENT_TYPES[extension] || 'text/plain; charset=utf-8',
 			Vary: 'Accept-Encoding, Accept',
 			'X-Content-Type-Options': 'nosniff',
 			'Content-Disposition': 'inline',
-			ETag: r2Object.httpEtag,
-			'Last-Modified': r2Object.uploaded.toUTCString(),
-			'Cache-Control': cacheControl,
-			'CDN-Cache-Control': `max-age=${cdnMaxAge}`,
-			'Cloudflare-CDN-Cache-Control': `max-age=${cdnMaxAge}`,
 			'Access-Control-Allow-Origin': '*',
 			'Access-Control-Expose-Headers': 'Content-Length, Content-Type, ETag',
 		});
+		applyPublicCacheHeaders(headers, r2Object, r2Object.key, IMMUTABLE_CACHE_CONTROL);
 
 		// Only compress for script/link tags that accept gzip and aren't already minified
 		if (isScriptRequest && !isMinified && request.headers.get('Accept-Encoding')?.includes('gzip')) {
@@ -79,16 +73,11 @@ export async function handleGitHubResponse(repo, version, filePath, env, ctx, sh
 		const headers = new Headers({
 			'Content-Type': CONTENT_TYPES[extension] || 'text/plain; charset=utf-8',
 			'X-Served-From': 'GitHub',
-			'Cache-Control': 'public, max-age=31536000, immutable',
-			'CDN-Cache-Control': 'max-age=31536000',
-			'Cloudflare-CDN-Cache-Control': 'max-age=31536000',
+			'Cache-Control': IMMUTABLE_CACHE_CONTROL,
+			'CDN-Cache-Control': IMMUTABLE_CACHE_CONTROL,
+			'Cloudflare-CDN-Cache-Control': IMMUTABLE_CACHE_CONTROL,
 			'Access-Control-Allow-Origin': '*',
 		});
-
-		// Add preload hints for common resources
-		if (filePath.endsWith('.js')) {
-			headers.set('Link', '</style.css>; rel=preload; as=style, </script.js>; rel=preload; as=script');
-		}
 
 		// Only compress for script/link tags that accept gzip and aren't already minified
 		const acceptHeader = request.headers.get('Accept') || '';

@@ -1,4 +1,9 @@
-import { publicUrl } from './keys.js';
+import {
+  hashedFilename,
+  IMMUTABLE_CACHE_CONTROL,
+  MUTABLE_CACHE_CONTROL,
+  publicUrl,
+} from './keys.js';
 
 export type PutObjectInput = {
   key: string;
@@ -45,6 +50,19 @@ export type PublishVersionedInput = {
   versionedName?: string;
   immutableCacheControl: string;
   mutableCacheControl: string;
+};
+
+export type PublishHashedAssetInput = {
+  /** Directory prefix, e.g. `heard/hp/prod` */
+  prefix: string;
+  /** Stable live filename, e.g. `personalization.js` */
+  liveName: string;
+  body: string | Uint8Array | ArrayBuffer;
+  contentType: string;
+  /** Content hash (caller computes; 8–16 hex chars is typical). */
+  hash: string;
+  immutableCacheControl?: string;
+  mutableCacheControl?: string;
 };
 
 export type PublishVersionedResult = {
@@ -186,5 +204,22 @@ export class DxdCdnClient {
       liveUrl: publicUrl(this.origin, liveKey),
       versionedUrl: publicUrl(this.origin, versionedKey),
     };
+  }
+
+  /**
+   * Heard-style publish: hashed immutable snapshot + overwrite the stable live filename.
+   * Embeds keep `…/personalization.js`; the `.hash.js` copy is for rollback.
+   */
+  async publishHashedAsset(input: PublishHashedAssetInput): Promise<PublishVersionedResult> {
+    return this.publishVersioned({
+      prefix: input.prefix,
+      version: input.hash,
+      body: input.body,
+      contentType: input.contentType,
+      liveName: input.liveName,
+      versionedName: hashedFilename(input.liveName, input.hash),
+      immutableCacheControl: input.immutableCacheControl ?? IMMUTABLE_CACHE_CONTROL,
+      mutableCacheControl: input.mutableCacheControl ?? MUTABLE_CACHE_CONTROL,
+    });
   }
 }

@@ -17,29 +17,20 @@ Until published to a registry:
 ## Usage
 
 ```ts
-import {
-  DxdCdnClient,
-  DEFAULT_CDN_ORIGIN,
-  IMMUTABLE_CACHE_CONTROL,
-  MUTABLE_CACHE_CONTROL,
-  joinKey,
-} from '@dxd/cdn';
+import { DxdCdnClient, DEFAULT_CDN_ORIGIN, joinKey } from '@dxd/cdn';
 
 const cdn = new DxdCdnClient({
   origin: DEFAULT_CDN_ORIGIN,
   uploadPassword: process.env.DXD_CDN_UPLOAD_PASSWORD!,
 });
 
-const prefix = joinKey('my-client', 'my-project', 'prod', 'widgets', widgetId);
-
-await cdn.publishVersioned({
-  prefix,
-  version: 3,
-  body: JSON.stringify(config),
-  contentType: 'application/json',
-  immutableCacheControl: IMMUTABLE_CACHE_CONTROL,
-  mutableCacheControl: MUTABLE_CACHE_CONTROL,
+await cdn.publishHashedAsset({
+  prefix: joinKey('heard', 'hp', 'prod'),
+  liveName: 'personalization.js',
+  hash: 'abc123def456',
+  body: scriptBytes,
+  contentType: 'application/javascript; charset=utf-8',
 });
 ```
 
-See [docs/api-objects.md](../../docs/api-objects.md) for the Worker contract and Elfsight-style embed notes.
+`publishVersioned` is the same idea with `v{n}.json` snapshots (Studio widgets). See [docs/api-objects.md](../../docs/api-objects.md) and [docs/connect-a-worker.md](../../docs/connect-a-worker.md).

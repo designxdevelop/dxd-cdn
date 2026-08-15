@@ -17,6 +17,7 @@ bucket_name = "dxd-cdn"
 # Environment variables
 [vars]
 ENVIRONMENT = "production"
+PUBLIC_ORIGIN = "https://cdn.designxdevelop.com"
 
 # Secrets (set via: wrangler secret put UPLOAD_PASSWORD)
 # UPLOAD_PASSWORD - Required for /upload and /browse routes

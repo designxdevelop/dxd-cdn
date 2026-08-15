@@ -40,12 +40,14 @@ Body: raw bytes.
 
 **Cache policies apps should choose:**
 
-| Use | `Cache-Control` |
+| Use | `Cache-Control` (`X-DXD-Cache-Control`) |
 | --- | --- |
-| Versioned / hashed files (`v12.json`, `platform.abc123.js`) | `public, max-age=31536000, immutable` |
-| Mutable “live” pointers (`config.json`, `platform.js`) | `public, max-age=60, must-revalidate` |
+| Versioned / hashed files (`v12.json`, `personalization.abc123.js`) | `public, max-age=31536000, immutable` |
+| Mutable “live” pointers (`config.json`, `personalization.js`) | `public, max-age=0, must-revalidate` (this is also the PUT default) |
 
-Public GET responses use the object's stored `Cache-Control` (fallback: 1 year).
+Public GET honors the stored value for browsers. Mutable objects also get `Cloudflare-CDN-Cache-Control: public, max-age=60` so the edge can absorb repeat hits without pinning a stale copy for a year. `If-None-Match` returns `304` when the object is unchanged.
+
+`@dxd/cdn` exports `MUTABLE_CACHE_CONTROL`, `IMMUTABLE_CACHE_CONTROL`, and `publishHashedAsset()` (Heard-style live + hashed snapshot). Client Workers on the same Cloudflare account can skip HTTP auth and bind `CdnObjects` — see [connect-a-worker.md](./connect-a-worker.md).
 
 ## GET `/api/objects?key=…&as=meta|body`
 
@@ -85,4 +87,6 @@ Snippet stays stable — **no version in the HTML**. One shared loader; widget i
 <div class="dxd-app-34fd47e8-15e7-4b0b-89e0-32aa4ccc5bf2" data-dxd-app-lazy></div>
 ```
 
-`platform.js` discovers `.dxd-app-{publicId}` nodes and fetches that widget's `config.json`. Republish overwrites `config.json` (short TTL) so visitors pick up changes without pasting a new snippet. Immutable `v{n}.json` files remain for rollback/history.
+`platform.js` discovers `.dxd-app-{publicId}` nodes and fetches that widget's `config.json`. Republish overwrites `config.json` (browsers revalidate; no version in the snippet). Immutable `v{n}.json` files remain for rollback/history.
+
+Connecting a new Studio app or client Worker: [connect-a-worker.md](./connect-a-worker.md).

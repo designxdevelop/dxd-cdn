@@ -7,17 +7,21 @@
  * 3. Direct R2 file serving for uploaded assets
  */
 
+import { CONTENT_TYPES, PREVIEW_TYPES } from './config/constants.js';
+import { handleFilesApi, handleFileStatsApi, handleFileContentApi, handleDeleteFileApi } from './handlers/api.js';
+import { handleBrowseGet, handleBrowsePost } from './handlers/browse.js';
+import { handlePutObjectApi, handleGetObjectApi } from './handlers/objects-api.js';
 import { handleR2Response, handleGitHubResponse } from './handlers/responses.js';
+import { handleMp4Stream } from './handlers/streaming.js';
+import { handleUploadGet, handleUploadPost } from './handlers/upload.js';
+import { CdnObjects } from './services/cdn-objects.js';
 import { getLatestRelease } from './services/github.js';
 import { handleSpecialPages } from './templates/pages.js';
-import { CONTENT_TYPES, PREVIEW_TYPES } from './config/constants.js';
-import { handleUploadGet, handleUploadPost } from './handlers/upload.js';
-import { handleBrowseGet, handleBrowsePost } from './handlers/browse.js';
-import { handleFilesApi, handleFileStatsApi, handleFileContentApi, handleDeleteFileApi } from './handlers/api.js';
-import { handlePutObjectApi, handleGetObjectApi } from './handlers/objects-api.js';
-import { handleMp4Stream } from './handlers/streaming.js';
+import { applyPublicCacheHeaders, encodedPathFallback, notModifiedResponse } from './utils/cache.js';
 import { handleCorsPreflightRequest, getCorsHeaders } from './utils/cors.js';
 import { trackFileRequest } from './utils/files.js';
+
+export { CdnObjects };
 
 export default {
 	async fetch(request, env, ctx) {
@@ -139,7 +143,7 @@ export default {
 				path: new URL(request.url).pathname,
 			});
 
-			return new Response(`Error: ${error.message}`, { status: 500 });
+			return new Response('Internal Server Error', { status: 500 });
 		}
 	},
 };
@@ -243,42 +247,43 @@ async function handleGitHubProxyRequest(request, env, ctx, url, path, pathParts)
  * URL format: /:client/:project/:env/:file or any direct path
  */
 async function handleDirectR2Request(request, env, ctx, url, path) {
-	// Check for force download parameter
 	const forceDownload = url.searchParams.get('download') === 'true';
 
-	// Get the file from R2
-	const object = await env.CDN_BUCKET.get(path);
+	let object = await env.CDN_BUCKET.get(path);
+	if (!object) {
+		const encodedPath = encodedPathFallback(request, path);
+		if (encodedPath) {
+			object = await env.CDN_BUCKET.get(encodedPath);
+			if (object) path = encodedPath;
+		}
+	}
 
 	if (!object) {
 		return new Response('File not found', { status: 404 });
 	}
 
-	// Determine content type based on file extension
 	const extension = path.split('.').pop().toLowerCase();
-	const contentType = CONTENT_TYPES[extension] || 'application/octet-stream';
+	const contentType = CONTENT_TYPES[extension] || object.httpMetadata?.contentType || 'application/octet-stream';
 
-	// Handle MP4 files with streaming support
 	if (extension === 'mp4') {
 		return handleMp4Stream(request, object, env, path);
 	}
 
-	// Prepare headers — honor per-object Cache-Control from R2 metadata when set
 	const headers = new Headers({
 		'Content-Type': contentType,
-		'Cache-Control': object.httpMetadata?.cacheControl || 'public, max-age=31536000',
-		ETag: object.httpEtag,
-		'Last-Modified': object.uploaded.toUTCString(),
 		'Access-Control-Allow-Origin': '*',
 	});
+	applyPublicCacheHeaders(headers, object, path);
 
-	// Set Content-Disposition based on file type and download parameter
 	if (forceDownload) {
 		headers.set('Content-Disposition', `attachment; filename="${path.split('/').pop()}"`);
 	} else if (PREVIEW_TYPES.has(extension)) {
 		headers.set('Content-Disposition', 'inline');
 	}
 
-	// Track file request (non-blocking)
+	const notModified = notModifiedResponse(request, object.httpEtag, headers);
+	if (notModified) return notModified;
+
 	trackFileRequest(env.CDN_BUCKET, path).catch((err) => {
 		console.error('Error tracking file request:', err);
 	});

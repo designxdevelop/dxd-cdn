@@ -10,6 +10,7 @@ A hybrid CDN using Cloudflare Workers and R2 storage. Supports file upload/brows
 - 📊 File analytics tracking (request count, first/last served)
 - 🗑️ File deletion via API
 - 🎬 MP4 streaming with range request support
+- 🔁 Live URLs revalidate in the browser (republish without a hard refresh)
 
 ### GitHub Proxy (Legacy)
 - 🌍 Global CDN via Cloudflare's edge network
@@ -221,6 +222,14 @@ Examples:
 - `acme/website/prod/logo.svg`
 - `acme/website/staging/hero-video.mp4`
 - `bigcorp/landing-page/prod/styles.css`
+
+### Caching Strategy
+- GitHub releases cached 5 minutes in-memory
+- Hashed / versioned assets: 1 year `immutable`
+- Live objects (`config.json`, `personalization.js`, web uploads): browsers revalidate (`max-age=0, must-revalidate`); Cloudflare edge keeps a ~60s copy
+- API list/stats responses use `no-cache`
+
+See [docs/api-objects.md](docs/api-objects.md) and [docs/connect-a-worker.md](docs/connect-a-worker.md).
 
 ## Limitations
 

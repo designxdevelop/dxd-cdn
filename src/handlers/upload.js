@@ -2,6 +2,7 @@
  * Upload route handlers for DXD CDN
  */
 
+import { MUTABLE_CACHE_CONTROL } from '../config/constants.js';
 import { UPLOAD_FORM_HTML, getSuccessHTML, getUploadErrorHTML } from '../templates/upload.js';
 import { getUniqueFilename } from '../utils/files.js';
 
@@ -63,6 +64,7 @@ export async function handleUploadPost(request, env, url) {
 		await env.CDN_BUCKET.put(filename, file.stream(), {
 			httpMetadata: {
 				contentType: file.type || 'application/octet-stream',
+				cacheControl: MUTABLE_CACHE_CONTROL,
 			},
 		});
 

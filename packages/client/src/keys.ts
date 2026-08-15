@@ -2,10 +2,14 @@
 export const IMMUTABLE_CACHE_CONTROL = 'public, max-age=31536000, immutable';
 
 /**
- * Mutable “live” objects (config.json, platform.js).
- * Short TTL so republish is visible without changing embed snippets.
+ * Mutable “live” objects (config.json, platform.js, personalization.js).
+ * Browsers revalidate on every navigation so a republish is visible without a hard refresh.
+ * Pair with EDGE_MUTABLE_CACHE_CONTROL on the Worker response (set automatically on public GET).
  */
-export const MUTABLE_CACHE_CONTROL = 'public, max-age=60, must-revalidate';
+export const MUTABLE_CACHE_CONTROL = 'public, max-age=0, must-revalidate';
+
+/** Edge-only TTL the Worker applies to mutable public GETs. */
+export const EDGE_MUTABLE_CACHE_CONTROL = 'public, max-age=60';
 
 /** @deprecated Use MUTABLE_CACHE_CONTROL */
 export const LATEST_CACHE_CONTROL = MUTABLE_CACHE_CONTROL;
@@ -25,6 +29,20 @@ export function joinKey(...parts: Array<string | number>): string {
     throw new Error(`Invalid CDN object key: ${JSON.stringify(parts)}`);
   }
   return key;
+}
+
+/**
+ * `personalization.js` + `abc123def456` → `personalization.abc123def456.js`
+ */
+export function hashedFilename(liveName: string, hash: string): string {
+  const trimmed = String(liveName).replace(/^\/+|\/+$/g, '');
+  const digest = String(hash).replace(/[^a-zA-Z0-9]/g, '');
+  if (!trimmed || !digest) {
+    throw new Error(`Invalid hashed filename: ${JSON.stringify({ liveName, hash })}`);
+  }
+  const dot = trimmed.lastIndexOf('.');
+  if (dot <= 0) return `${trimmed}.${digest}`;
+  return `${trimmed.slice(0, dot)}.${digest}${trimmed.slice(dot)}`;
 }
 
 /** Public URL; optional `?v=` for extra busting of mutable objects. */

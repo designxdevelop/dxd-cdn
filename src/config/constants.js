@@ -62,3 +62,21 @@ export const COMPRESSIBLE_TYPES = new Set([
 
 export const DEFAULT_GITHUB_OWNER = 'austin-thesing';
 export const GITHUB_CACHE_TTL = 300000; // 5 minutes in milliseconds
+
+/** Public origin used in RPC/service-binding responses (HTTP handlers use the request origin). */
+export const DEFAULT_CDN_ORIGIN = 'https://cdn.designxdevelop.com';
+
+/**
+ * Mutable live URLs (config.json, personalization.js, web uploads).
+ * Browsers revalidate on every navigation so a republish is visible without a hard refresh.
+ */
+export const MUTABLE_CACHE_CONTROL = 'public, max-age=0, must-revalidate';
+
+/** Hashed / versioned snapshots that never change at that key. */
+export const IMMUTABLE_CACHE_CONTROL = 'public, max-age=31536000, immutable';
+
+/**
+ * Edge-only TTL for mutable objects. Short enough that a republish is visible
+ * within a minute without a cache-purge API; long enough to absorb repeat hits.
+ */
+export const EDGE_MUTABLE_CACHE_CONTROL = 'public, max-age=60';

@@ -4,6 +4,7 @@
  */
 
 import { CONTENT_TYPES } from '../config/constants.js';
+import { applyPublicCacheHeaders, notModifiedResponse } from '../utils/cache.js';
 import { trackFileRequest } from '../utils/files.js';
 
 /**
@@ -18,11 +19,14 @@ export async function handleMp4Stream(request, object, env, path) {
 	const headers = new Headers({
 		'Content-Type': CONTENT_TYPES.mp4,
 		'Accept-Ranges': 'bytes',
-		'Cache-Control': 'public, max-age=31536000',
-		ETag: object.httpEtag,
-		'Last-Modified': object.uploaded.toUTCString(),
 		'Access-Control-Allow-Origin': '*',
 	});
+	applyPublicCacheHeaders(headers, object, path);
+
+	if (!request.headers.has('range')) {
+		const notModified = notModifiedResponse(request, object.httpEtag, headers);
+		if (notModified) return notModified;
+	}
 
 	// Handle range requests
 	if (request.headers.has('range')) {

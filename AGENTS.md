@@ -192,10 +192,10 @@ const objects = await env.CDN_BUCKET.list();
 
 ## Testing
 
-No test framework configured. Manual testing via:
 ```bash
-npm run dev   # Start local server
-# Test endpoints manually with curl or browser
+npm test       # vitest: @dxd/cdn client + Worker helpers
+npm run typecheck
+npm run dev    # wrangler; hit endpoints with curl or browser
 ```
 
 ## Key Patterns
@@ -211,11 +211,12 @@ GitHub proxy follows: `/:repo/:version/:filepath`
 - `PUT|GET /api/objects` — project-agnostic put/pull; see `docs/api-objects.md`
 - Shared TS client: `packages/client` (`@dxd/cdn`) — use from any DXD repo
 - Per-object `Cache-Control` via `X-DXD-Cache-Control` (honored on public GET)
+- Client Workers bind `CdnObjects` (service binding) — see `docs/connect-a-worker.md`
 
 ### Caching Strategy
 - GitHub releases cached 5 minutes in-memory
-- Default static assets: 1 year `immutable`
-- Mutable live objects (e.g. Studio `config.json`): short TTL set by the publisher
+- Hashed / versioned assets: 1 year `immutable`
+- Live objects (`config.json`, `personalization.js`, web uploads): browsers revalidate (`max-age=0, must-revalidate`); Cloudflare edge keeps a ~60s copy
 - API list/stats responses use `no-cache`
 
 ## Cursor Cloud specific instructions
@@ -229,6 +230,6 @@ Dependencies are already installed by the startup update script (`npm install`, 
 - Local R2 state persists under `.wrangler/` (gitignored) between dev runs.
 
 ### Testing / checks
-- `npm run typecheck` (tsc) and `npm test` (vitest) both only cover the `@dxd/cdn` client in `packages/client`. There is no test coverage or lint script for the Worker `src/` code — validate Worker changes by running `wrangler dev` and hitting endpoints with curl/browser.
+- `npm run typecheck` (tsc) covers `@dxd/cdn`. `npm test` runs vitest for the client and Worker helpers (`src/**/*.test.js`). There is no lint script for the Worker — also validate with `wrangler dev` and curl.
 - No linter is wired up (no ESLint/Prettier in devDependencies) despite the style guide above; formatting is not enforced by a command.
-- Quick smoke test once dev server is up: `PUT /api/objects` with header `Authorization: Bearer <UPLOAD_PASSWORD>` and `X-DXD-Object-Key`, then confirm via `GET /api/objects?key=...&password=<pw>`, public `GET /<key>`, and the `/browse?password=<pw>` UI.
+- Quick smoke test once dev server is up: `PUT /api/objects` with header `Authorization: Bearer <UPLOAD_PASSWORD>` and `X-DXD-Object-Key`, then confirm via `GET /api/objects?key=...&password=<pw>`, public `GET /<key>` (check `Cache-Control` / `ETag` / `If-None-Match` → 304), and the `/browse?password=<pw>` UI.

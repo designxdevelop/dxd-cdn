@@ -183,10 +183,11 @@ Make sure your `BUILD_DIR` matches the actual output directory of your build pro
 
 ### Files not updating
 
-The CDN uses aggressive caching. For immediate updates:
-1. Use versioned filenames (e.g., `main.v2.js`)
-2. Or add cache-busting query strings (e.g., `main.js?v=123`)
-3. Or wait for cache to expire (up to 1 year for immutable assets)
+Prefer the Objects API (`@dxd/cdn` / `PUT /api/objects`) over rclone. rclone writes R2 without per-object `Cache-Control`, so live URLs used to stick in browsers for up to a year.
+
+Live (unhashed) URLs now revalidate on the next page load. Hashed filenames (`main.abc123.js`) stay cached for a year by design — change the filename or wait for a new hash.
+
+If you still deploy with rclone, public GET falls back to browser revalidation for objects that have no stored `Cache-Control`. New publishes should still set `X-DXD-Cache-Control` explicitly.
 
 ## File Browser
 
