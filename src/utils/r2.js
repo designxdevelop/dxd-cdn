@@ -55,6 +55,20 @@ export function hasR2Body(object) {
 }
 
 /**
+ * Map a failed R2 `onlyIf` GET to an HTTP status.
+ * R2 omits the body for any failed condition; Cloudflare’s sample uses 412 for all of them.
+ * RFC 9110: If-None-Match / If-Modified-Since → 304; If-Match / If-Unmodified-Since → 412.
+ * @param {Request} request
+ * @returns {304|412}
+ */
+export function failedOnlyIfStatus(request) {
+	if (request.headers.has('If-Match') || request.headers.has('If-Unmodified-Since')) {
+		return 412;
+	}
+	return 304;
+}
+
+/**
  * @param {R2Bucket} bucket
  * @param {Request} request
  * @param {string} decodedPath

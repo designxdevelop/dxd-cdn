@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { getR2Object, hasR2Body, r2GetOptions, r2KeyCandidates } from './r2.js';
+import { failedOnlyIfStatus, getR2Object, hasR2Body, r2GetOptions, r2KeyCandidates } from './r2.js';
 
 describe('r2KeyCandidates', () => {
 	test('includes the decoded path and the percent-encoded URL path', () => {
@@ -44,5 +44,41 @@ describe('getR2Object', () => {
 		const found = await getR2Object(bucket, request, 'a.js');
 		expect(hasR2Body(found.object)).toBe(false);
 		expect(found.object?.httpEtag).toBe('"abc"');
+	});
+});
+
+describe('failedOnlyIfStatus', () => {
+	test('returns 304 for If-None-Match and If-Modified-Since', () => {
+		expect(
+			failedOnlyIfStatus(
+				new Request('https://cdn.designxdevelop.com/a.js', {
+					headers: { 'If-None-Match': '"abc"' },
+				}),
+			),
+		).toBe(304);
+		expect(
+			failedOnlyIfStatus(
+				new Request('https://cdn.designxdevelop.com/a.js', {
+					headers: { 'If-Modified-Since': 'Sat, 15 Aug 2026 00:00:00 GMT' },
+				}),
+			),
+		).toBe(304);
+	});
+
+	test('returns 412 only for If-Match and If-Unmodified-Since', () => {
+		expect(
+			failedOnlyIfStatus(
+				new Request('https://cdn.designxdevelop.com/a.js', {
+					headers: { 'If-Match': '"abc"' },
+				}),
+			),
+		).toBe(412);
+		expect(
+			failedOnlyIfStatus(
+				new Request('https://cdn.designxdevelop.com/a.js', {
+					headers: { 'If-Unmodified-Since': 'Sat, 15 Aug 2026 00:00:00 GMT' },
+				}),
+			),
+		).toBe(412);
 	});
 });

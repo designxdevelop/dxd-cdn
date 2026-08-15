@@ -33,7 +33,7 @@ Overwrite by default (needed so “publish again” updates the same live URL).
 | --- | --- |
 | `X-DXD-Object-Key` | Object key (required) |
 | `Content-Type` | Stored + served content type |
-| `X-DXD-Cache-Control` | Stored on the object; honored on public GET |
+| `X-DXD-Cache-Control` | One of the two policies below (omit for live default). Anything else is 400. |
 | `X-DXD-Overwrite` | `true` (default) or `false` (409 if exists) |
 
 Body: raw bytes.
@@ -45,7 +45,7 @@ Body: raw bytes.
 | Versioned / hashed files (`v12.json`, `personalization.abc123.js`) | `public, max-age=31536000, immutable` |
 | Mutable “live” pointers (`config.json`, `personalization.js`) | `public, max-age=0, must-revalidate` (this is also the PUT default) |
 
-Public GET honors the stored value for **all** of `Cache-Control`, `CDN-Cache-Control`, and `Cloudflare-CDN-Cache-Control`. Live defaults revalidate (`max-age=0, must-revalidate`); hashed snapshots are `immutable`. `If-None-Match` returns `304` when the object is unchanged (R2 conditional GET, no body download).
+PUT allowlists only those two strings. Public GET honors the stored value for **all** of `Cache-Control`, `CDN-Cache-Control`, and `Cloudflare-CDN-Cache-Control`. `If-None-Match` / `If-Modified-Since` return `304` when the object is unchanged (R2 conditional GET, no body download).
 
 `@dxd/cdn` exports `MUTABLE_CACHE_CONTROL`, `IMMUTABLE_CACHE_CONTROL`, and `publishHashedAsset()` (Heard-style live + hashed snapshot). Client Workers on the same Cloudflare account can skip HTTP auth and bind `CdnObjects` — that binding can write **any** key in the bucket; see [connect-a-worker.md](./connect-a-worker.md).
 

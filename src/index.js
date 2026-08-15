@@ -20,7 +20,7 @@ import { handleSpecialPages } from './templates/pages.js';
 import { applyPublicCacheHeaders, cacheHeadersForObject, etagMatches, notModifiedResponse } from './utils/cache.js';
 import { handleCorsPreflightRequest, getCorsHeaders } from './utils/cors.js';
 import { trackFileRequest } from './utils/files.js';
-import { getR2Object, hasR2Body, headR2Object } from './utils/r2.js';
+import { failedOnlyIfStatus, getR2Object, hasR2Body, headR2Object } from './utils/r2.js';
 
 export { CdnObjects };
 
@@ -279,8 +279,7 @@ async function handleDirectR2Request(request, env, ctx, url, path) {
 	}
 
 	if (!hasR2Body(object)) {
-		const status = etagMatches(request.headers.get('If-None-Match'), object.httpEtag) ? 304 : 412;
-		return new Response(null, { status, headers });
+		return new Response(null, { status: failedOnlyIfStatus(request), headers });
 	}
 
 	const notModified = notModifiedResponse(request, object.httpEtag, headers);

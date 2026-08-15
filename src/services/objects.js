@@ -2,7 +2,7 @@
  * R2 object storage. HTTP handlers and CdnObjects adapt these results to status codes / RPC errors.
  */
 
-import { CONTENT_TYPES, DEFAULT_CDN_ORIGIN, MUTABLE_CACHE_CONTROL } from '../config/constants.js';
+import { CONTENT_TYPES, DEFAULT_CDN_ORIGIN, IMMUTABLE_CACHE_CONTROL, MUTABLE_CACHE_CONTROL } from '../config/constants.js';
 
 /**
  * @param {string} path
@@ -16,7 +16,7 @@ export function normalizeObjectKey(path) {
 }
 
 /**
- * @param {'INVALID_KEY'|'EXISTS'|'NOT_FOUND'} code
+ * @param {'INVALID_KEY'|'EXISTS'|'NOT_FOUND'|'INVALID_CACHE_CONTROL'} code
  * @returns {string}
  */
 export function objectErrorMessage(code) {
@@ -27,18 +27,22 @@ export function objectErrorMessage(code) {
 			return 'Object exists';
 		case 'NOT_FOUND':
 			return 'Not found';
+		case 'INVALID_CACHE_CONTROL':
+			return 'Invalid Cache-Control';
 		default:
 			return 'Object error';
 	}
 }
 
 /**
- * @param {'INVALID_KEY'|'EXISTS'|'NOT_FOUND'} code
+ * @param {'INVALID_KEY'|'EXISTS'|'NOT_FOUND'|'INVALID_CACHE_CONTROL'} code
  * @returns {number}
  */
 export function objectErrorStatus(code) {
 	switch (code) {
 		case 'INVALID_KEY':
+			return 400;
+		case 'INVALID_CACHE_CONTROL':
 			return 400;
 		case 'EXISTS':
 			return 409;
@@ -47,6 +51,21 @@ export function objectErrorStatus(code) {
 		default:
 			return 500;
 	}
+}
+
+/**
+ * Empty/omitted defaults to live revalidation. Anything else must be one of the two known policies.
+ * @param {string|null|undefined} value
+ * @returns {{ ok: true, cacheControl: string } | { ok: false, code: 'INVALID_CACHE_CONTROL' }}
+ */
+export function resolveCacheControl(value) {
+	if (value == null) return { ok: true, cacheControl: MUTABLE_CACHE_CONTROL };
+	const trimmed = String(value).trim();
+	if (!trimmed) return { ok: true, cacheControl: MUTABLE_CACHE_CONTROL };
+	if (trimmed === MUTABLE_CACHE_CONTROL || trimmed === IMMUTABLE_CACHE_CONTROL) {
+		return { ok: true, cacheControl: trimmed };
+	}
+	return { ok: false, code: 'INVALID_CACHE_CONTROL' };
 }
 
 /**
@@ -75,14 +94,17 @@ function contentTypeForKey(key, explicit) {
 /**
  * @param {Object} env
  * @param {{ key: string, body: BodyInit, contentType?: string, cacheControl?: string, overwrite?: boolean, origin?: string }} input
- * @returns {Promise<{ ok: true, key: string, url: string, cacheControl: string } | { ok: false, code: 'INVALID_KEY'|'EXISTS', key?: string }>}
+ * @returns {Promise<{ ok: true, key: string, url: string, cacheControl: string } | { ok: false, code: 'INVALID_KEY'|'EXISTS'|'INVALID_CACHE_CONTROL', key?: string }>}
  */
 export async function storeObject(env, input) {
 	const key = normalizeObjectKey(input.key);
 	if (!key) return { ok: false, code: 'INVALID_KEY' };
 
+	const cache = resolveCacheControl(input.cacheControl);
+	if (!cache.ok) return { ok: false, code: 'INVALID_CACHE_CONTROL', key };
+
 	const contentType = contentTypeForKey(key, input.contentType);
-	const cacheControl = input.cacheControl || MUTABLE_CACHE_CONTROL;
+	const cacheControl = cache.cacheControl;
 	const overwrite = input.overwrite !== false;
 	const origin = publicOrigin(env, input.origin);
 
