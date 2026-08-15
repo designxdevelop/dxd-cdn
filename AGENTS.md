@@ -214,6 +214,7 @@ GitHub proxy follows: `/:repo/:version/:filepath`
 - Client Workers bind `CdnObjects` (service binding) — see `docs/connect-a-worker.md`
 
 ### Caching Strategy
+
 - GitHub releases cached 5 minutes in-memory
 - Hashed / versioned assets: 1 year `immutable`
 - Live objects (`config.json`, `personalization.js`, web uploads): browsers revalidate (`max-age=0, must-revalidate`); no timed Cloudflare edge copy

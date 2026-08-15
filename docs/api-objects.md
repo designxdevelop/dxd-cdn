@@ -20,7 +20,7 @@ Query `?password=` also works (same secret as `/upload`).
 | --- | --- |
 | `acme/brochure/prod/hero.webp` | Client site assets |
 | `dxd-studio/platform.js` | Shared Studio embed loader (one file, all products) |
-| `dxd-studio/countdown/prod/widgets/{id}/config.json` | Live widget config (short TTL) |
+| `dxd-studio/countdown/prod/widgets/{id}/config.json` | Live widget config (revalidate) |
 | `dxd-studio/countdown/prod/widgets/{id}/v12.json` | Immutable publish snapshot |
 
 Stay under a dedicated `{client}` prefix so projects never collide.
@@ -49,7 +49,7 @@ PUT allowlists only those two strings. Public GET honors the stored value for **
 
 `@dxd/cdn` exports `MUTABLE_CACHE_CONTROL`, `IMMUTABLE_CACHE_CONTROL`, and `publishHashedAsset()` (Heard-style live + hashed snapshot). Client Workers on the same Cloudflare account can skip HTTP auth and bind `CdnObjects` — that binding can write **any** key in the bucket; see [connect-a-worker.md](./connect-a-worker.md).
 
-Objects already stored as `immutable` (old PUT default, rclone) stay sticky until you overwrite them. Republish live keys after deploying this Worker.
+Objects already stored as `immutable` (old PUT default, rclone) stay sticky in R2 until you overwrite them. Republish live keys after deploying this Worker. Browsers that already cached a URL as `immutable` will not revalidate — use a new hashed/versioned URL or purge for those clients.
 
 ## GET `/api/objects?key=…&as=meta|body`
 

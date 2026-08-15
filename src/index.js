@@ -7,7 +7,7 @@
  * 3. Direct R2 file serving for uploaded assets
  */
 
-import { CONTENT_TYPES, IMMUTABLE_CACHE_CONTROL, PREVIEW_TYPES } from './config/constants.js';
+import { CONTENT_TYPES, IMMUTABLE_CACHE_CONTROL, MUTABLE_CACHE_CONTROL, PREVIEW_TYPES } from './config/constants.js';
 import { handleFilesApi, handleFileStatsApi, handleFileContentApi, handleDeleteFileApi } from './handlers/api.js';
 import { handleBrowseGet, handleBrowsePost } from './handlers/browse.js';
 import { handlePutObjectApi, handleGetObjectApi } from './handlers/objects-api.js';
@@ -18,7 +18,7 @@ import { CdnObjects } from './services/cdn-objects.js';
 import { getLatestRelease } from './services/github.js';
 import { handleSpecialPages } from './templates/pages.js';
 import { applyPublicCacheHeaders, cacheHeadersForObject, etagMatches, notModifiedResponse } from './utils/cache.js';
-import { handleCorsPreflightRequest, getCorsHeaders } from './utils/cors.js';
+import { handleCorsPreflightRequest, getCorsHeaders, jsonApiHeaders } from './utils/cors.js';
 import { trackFileRequest } from './utils/files.js';
 import { failedOnlyIfStatus, getR2Object, hasR2Body, headR2Object } from './utils/r2.js';
 
@@ -144,7 +144,10 @@ export default {
 				path: new URL(request.url).pathname,
 			});
 
-			return new Response('Internal Server Error', { status: 500 });
+			return new Response(JSON.stringify({ error: 'Internal Server Error' }), {
+				status: 500,
+				headers: jsonApiHeaders(),
+			});
 		}
 	},
 };
@@ -157,16 +160,18 @@ async function handleGitHubProxyRequest(request, env, ctx, url, path, pathParts)
 	// Try to get from cache first with ETag support
 	const cache = caches.default;
 	const cacheKey = new Request(url.toString(), request);
-	let response = await cache.match(cacheKey);
+	let response = null;
 
-	// Check if we have a fresh cache hit
-	if (response) {
-		if (etagMatches(request.headers.get('If-None-Match'), response.headers.get('ETag'))) {
-			return new Response(null, { status: 304 });
+	if (pathParts[1] !== 'latest') {
+		response = await cache.match(cacheKey);
+		if (response) {
+			if (etagMatches(request.headers.get('If-None-Match'), response.headers.get('ETag'))) {
+				return new Response(null, { status: 304, headers: response.headers });
+			}
+			response = new Response(response.body, response);
+			response.headers.set('CF-Cache-Status', 'HIT');
+			return response;
 		}
-		response = new Response(response.body, response);
-		response.headers.set('CF-Cache-Status', 'HIT');
-		return response;
 	}
 
 	const repo = pathParts[0];
@@ -205,7 +210,8 @@ async function handleGitHubProxyRequest(request, env, ctx, url, path, pathParts)
 		}
 
 		const headers = new Headers(response.headers);
-		for (const [name, value] of Object.entries(cacheHeadersForObject(IMMUTABLE_CACHE_CONTROL))) {
+		const cacheControl = version === 'latest' ? MUTABLE_CACHE_CONTROL : IMMUTABLE_CACHE_CONTROL;
+		for (const [name, value] of Object.entries(cacheHeadersForObject(cacheControl))) {
 			headers.set(name, value);
 		}
 		headers.set('Access-Control-Allow-Origin', '*');
@@ -223,8 +229,9 @@ async function handleGitHubProxyRequest(request, env, ctx, url, path, pathParts)
 			statusText: response.statusText,
 		});
 
-		// Cache in Cloudflare's edge with ETag
-		ctx.waitUntil(cache.put(cacheKey, response.clone()));
+		if (version !== 'latest') {
+			ctx.waitUntil(cache.put(cacheKey, response.clone()));
+		}
 
 		return response;
 	} catch (error) {

@@ -4,11 +4,12 @@ import { IMMUTABLE_CACHE_CONTROL, MUTABLE_CACHE_CONTROL } from './keys.js';
 
 describe('publishHashedAsset', () => {
   it('writes a hashed snapshot then overwrites the live filename', async () => {
-    const puts: Array<{ key: string; cache: string }> = [];
+    const puts: Array<{ key: string; cache: string; overwrite: string | null }> = [];
     const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
-      const key = new Headers(init?.headers).get('X-DXD-Object-Key') || '';
-      const cache = new Headers(init?.headers).get('X-DXD-Cache-Control') || '';
-      puts.push({ key, cache });
+      const headers = new Headers(init?.headers);
+      const key = headers.get('X-DXD-Object-Key') || '';
+      const cache = headers.get('X-DXD-Cache-Control') || '';
+      puts.push({ key, cache, overwrite: headers.get('X-DXD-Overwrite') });
       return new Response(
         JSON.stringify({
           ok: true,
@@ -38,10 +39,12 @@ describe('publishHashedAsset', () => {
       {
         key: 'heard/hp/prod/personalization.abc123def456.js',
         cache: IMMUTABLE_CACHE_CONTROL,
+        overwrite: 'false',
       },
       {
         key: 'heard/hp/prod/personalization.js',
         cache: MUTABLE_CACHE_CONTROL,
+        overwrite: 'true',
       },
     ]);
     expect(result.liveUrl).toBe('https://cdn.designxdevelop.com/heard/hp/prod/personalization.js');
@@ -115,8 +118,8 @@ describe('publishHashedAsset', () => {
     const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
       const key = new Headers(init?.headers).get('X-DXD-Object-Key') || '';
       if (key.endsWith('personalization.abc123def456.js')) {
-        return new Response(JSON.stringify({ error: 'R2 unavailable' }), {
-          status: 500,
+        return new Response(JSON.stringify({ error: 'Object exists', key }), {
+          status: 409,
           headers: { 'Content-Type': 'application/json' },
         });
       }
@@ -140,7 +143,7 @@ describe('publishHashedAsset', () => {
         body: 'console.log(1)',
         contentType: 'application/javascript; charset=utf-8',
       }),
-    ).rejects.toThrow(/R2 unavailable/);
+    ).rejects.toThrow(/Object exists/);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 });

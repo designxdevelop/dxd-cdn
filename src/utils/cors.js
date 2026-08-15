@@ -42,6 +42,18 @@ export function getCorsHeaders(origin = null) {
 }
 
 /**
+ * JSON API responses: never cache, always CORS.
+ * @returns {Object}
+ */
+export function jsonApiHeaders() {
+	return {
+		'Content-Type': 'application/json',
+		'Cache-Control': 'no-store',
+		...getCorsHeaders(),
+	};
+}
+
+/**
  * Handle CORS preflight requests (OPTIONS)
  * @returns {Response} Preflight response with CORS headers
  */

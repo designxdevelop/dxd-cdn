@@ -263,13 +263,14 @@ Examples:
 - `bigcorp/landing-page/prod/styles.css`
 
 ### Caching Strategy
+
 - GitHub releases cached 5 minutes in-memory
 - Hashed / versioned assets (and GitHub `/:repo/:version/:file`): 1 year `immutable`
 - Live objects (`config.json`, `personalization.js`, web uploads): `public, max-age=0, must-revalidate` on browser **and** Cloudflare cache headers — no timed edge copy. Next navigation revalidates (`304` if unchanged)
 - PUT `/api/objects` allowlists only those two `Cache-Control` strings
 - API JSON responses use `no-store`
 
-After deploying this Worker, **republish existing live keys**. Objects already stored as `immutable` (old PUT default, rclone) stay sticky until overwritten.
+After deploying this Worker, **republish existing live keys**. Overwriting R2 updates new visitors. Browsers that already stored the URL as `immutable` will not recheck until they drop that entry — those clients need a new URL (hashed/versioned filename) or an explicit cache purge.
 
 See [docs/api-objects.md](docs/api-objects.md) and [docs/connect-a-worker.md](docs/connect-a-worker.md).
 

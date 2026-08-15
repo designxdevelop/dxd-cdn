@@ -2,6 +2,7 @@
  * API route handlers for DXD CDN
  */
 
+import { jsonApiHeaders } from '../utils/cors.js';
 import { getFilesList, getFileStats } from '../utils/files.js';
 
 /**
@@ -15,7 +16,7 @@ function validatePassword(url, env) {
 	if (!env.UPLOAD_PASSWORD || password !== env.UPLOAD_PASSWORD) {
 		return new Response(JSON.stringify({ error: 'Unauthorized' }), {
 			status: 401,
-			headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+			headers: jsonApiHeaders(),
 		});
 	}
 	return null;
@@ -45,16 +46,13 @@ export async function handleFilesApi(url, env) {
 		});
 
 		return new Response(JSON.stringify(result), {
-			headers: {
-				'Content-Type': 'application/json',
-				'Cache-Control': 'no-store',
-			},
+			headers: jsonApiHeaders(),
 		});
 	} catch (error) {
 		console.error('Files API error:', error);
 		return new Response(JSON.stringify({ error: 'Failed to fetch files' }), {
 			status: 500,
-			headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+			headers: jsonApiHeaders(),
 		});
 	}
 }
@@ -74,23 +72,20 @@ export async function handleFileStatsApi(url, env) {
 		if (!filepath) {
 			return new Response(JSON.stringify({ error: 'File parameter required' }), {
 				status: 400,
-				headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+				headers: jsonApiHeaders(),
 			});
 		}
 
 		const stats = await getFileStats(env.CDN_BUCKET, filepath);
 
 		return new Response(JSON.stringify(stats), {
-			headers: {
-				'Content-Type': 'application/json',
-				'Cache-Control': 'no-store',
-			},
+			headers: jsonApiHeaders(),
 		});
 	} catch (error) {
 		console.error('File stats API error:', error);
 		return new Response(JSON.stringify({ error: 'Failed to fetch file stats' }), {
 			status: 500,
-			headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+			headers: jsonApiHeaders(),
 		});
 	}
 }
@@ -110,7 +105,7 @@ export async function handleFileContentApi(url, env) {
 		if (!filename) {
 			return new Response(JSON.stringify({ error: 'File parameter required' }), {
 				status: 400,
-				headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+				headers: jsonApiHeaders(),
 			});
 		}
 
@@ -119,7 +114,7 @@ export async function handleFileContentApi(url, env) {
 		if (extension !== 'html' && extension !== 'htm') {
 			return new Response(JSON.stringify({ error: 'Only HTML files are supported' }), {
 				status: 400,
-				headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+				headers: jsonApiHeaders(),
 			});
 		}
 
@@ -128,7 +123,7 @@ export async function handleFileContentApi(url, env) {
 		if (!object) {
 			return new Response(JSON.stringify({ error: 'File not found' }), {
 				status: 404,
-				headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+				headers: jsonApiHeaders(),
 			});
 		}
 
@@ -136,16 +131,13 @@ export async function handleFileContentApi(url, env) {
 		const content = await object.text();
 
 		return new Response(JSON.stringify({ content }), {
-			headers: {
-				'Content-Type': 'application/json',
-				'Cache-Control': 'no-store',
-			},
+			headers: jsonApiHeaders(),
 		});
 	} catch (error) {
 		console.error('File content API error:', error);
 		return new Response(JSON.stringify({ error: 'Failed to fetch file content' }), {
 			status: 500,
-			headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+			headers: jsonApiHeaders(),
 		});
 	}
 }
@@ -165,7 +157,7 @@ export async function handleDeleteFileApi(url, env) {
 		if (!filename) {
 			return new Response(JSON.stringify({ error: 'File parameter required' }), {
 				status: 400,
-				headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+				headers: jsonApiHeaders(),
 			});
 		}
 
@@ -174,7 +166,7 @@ export async function handleDeleteFileApi(url, env) {
 		if (!object) {
 			return new Response(JSON.stringify({ error: 'File not found' }), {
 				status: 404,
-				headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+				headers: jsonApiHeaders(),
 			});
 		}
 
@@ -189,16 +181,13 @@ export async function handleDeleteFileApi(url, env) {
 		}
 
 		return new Response(JSON.stringify({ success: true, message: 'File deleted successfully' }), {
-			headers: {
-				'Content-Type': 'application/json',
-				'Cache-Control': 'no-store',
-			},
+			headers: jsonApiHeaders(),
 		});
 	} catch (error) {
 		console.error('Delete file API error:', error);
 		return new Response(JSON.stringify({ error: 'Failed to delete file' }), {
 			status: 500,
-			headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+			headers: jsonApiHeaders(),
 		});
 	}
 }

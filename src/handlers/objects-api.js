@@ -85,14 +85,21 @@ export async function handlePutObjectApi(request, env, url) {
 		} catch {
 			return badRequest('Invalid JSON envelope');
 		}
+		if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+			return badRequest('Invalid JSON envelope');
+		}
 		key = payload.key;
 		contentType = payload.contentType;
 		cacheControl = payload.cacheControl;
 		overwrite = payload.overwrite !== false;
-		if (payload.encoding === 'base64') {
-			body = Uint8Array.from(atob(String(payload.body || '')), (c) => c.charCodeAt(0));
-		} else {
-			body = String(payload.body ?? '');
+		try {
+			if (payload.encoding === 'base64') {
+				body = Uint8Array.from(atob(String(payload.body || '')), (c) => c.charCodeAt(0));
+			} else {
+				body = String(payload.body ?? '');
+			}
+		} catch {
+			return badRequest('Invalid JSON envelope');
 		}
 	} else {
 		key = request.headers.get('X-DXD-Object-Key') || url.searchParams.get('key') || '';

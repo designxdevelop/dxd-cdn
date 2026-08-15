@@ -27,23 +27,28 @@ export async function fetchGithub(url, env) {
 	};
 
 	let current = url;
-	for (let hop = 0; hop <= MAX_GITHUB_REDIRECTS; hop++) {
-		const response = await fetch(current, { headers, redirect: 'manual' });
-		if (response.status < 300 || response.status >= 400) {
-			return response;
+	try {
+		for (let hop = 0; hop <= MAX_GITHUB_REDIRECTS; hop++) {
+			const response = await fetch(current, { headers, redirect: 'manual' });
+			if (response.status < 300 || response.status >= 400) {
+				return response;
+			}
+
+			const location = response.headers.get('Location');
+			if (!location) return response;
+
+			const next = new URL(location, current);
+			if (next.protocol !== 'https:' || !isAllowedGithubHost(next.hostname)) {
+				throw new Error(`Blocked GitHub redirect to ${next.protocol}//${next.hostname}`);
+			}
+			current = next.toString();
 		}
 
-		const location = response.headers.get('Location');
-		if (!location) return response;
-
-		const next = new URL(location, current);
-		if (!isAllowedGithubHost(next.hostname)) {
-			throw new Error(`Blocked GitHub redirect to ${next.hostname}`);
-		}
-		current = next.toString();
+		throw new Error('Too many GitHub redirects');
+	} catch (error) {
+		console.error('GitHub fetch failed:', { url: current, error: error.message });
+		throw error;
 	}
-
-	throw new Error('Too many GitHub redirects');
 }
 
 export async function getCommit(repo, commit, env) {

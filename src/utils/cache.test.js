@@ -5,6 +5,7 @@ import {
 	cacheHeadersForObject,
 	cacheTagForKey,
 	etagMatches,
+	getPreconditionStatus,
 	isImmutableCacheControl,
 	notModifiedResponse,
 } from './cache.js';
@@ -60,6 +61,34 @@ describe('etagMatches', () => {
 		expect(etagMatches('"abc"', 'W/"abc"')).toBe(true);
 		expect(etagMatches('"old"', '"new"')).toBe(false);
 		expect(etagMatches('*', '"abc"')).toBe(true);
+	});
+});
+
+describe('getPreconditionStatus', () => {
+	const object = { httpEtag: '"abc"', uploaded: new Date('2026-01-01T00:00:00Z') };
+
+	test('If-Modified-Since not modified is 304', () => {
+		const request = new Request('https://cdn.designxdevelop.com/a.js', {
+			headers: { 'If-Modified-Since': 'Fri, 02 Jan 2026 00:00:00 GMT' },
+		});
+		expect(getPreconditionStatus(request, object)).toBe(304);
+	});
+
+	test('If-Match mismatch is 412', () => {
+		const request = new Request('https://cdn.designxdevelop.com/a.js', {
+			headers: { 'If-Match': '"other"' },
+		});
+		expect(getPreconditionStatus(request, object)).toBe(412);
+	});
+
+	test('If-None-Match takes precedence over If-Modified-Since', () => {
+		const request = new Request('https://cdn.designxdevelop.com/a.js', {
+			headers: {
+				'If-None-Match': '"old"',
+				'If-Modified-Since': 'Fri, 02 Jan 2026 00:00:00 GMT',
+			},
+		});
+		expect(getPreconditionStatus(request, object)).toBeNull();
 	});
 });
 

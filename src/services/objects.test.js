@@ -7,6 +7,9 @@ describe('normalizeObjectKey', () => {
 		expect(normalizeObjectKey('../secret')).toBeNull();
 		expect(normalizeObjectKey('api/objects')).toBeNull();
 		expect(normalizeObjectKey('/heard/hp/prod/a.js')).toBe('heard/hp/prod/a.js');
+		expect(normalizeObjectKey('a/./b.js')).toBeNull();
+		expect(normalizeObjectKey('a?b.json')).toBeNull();
+		expect(normalizeObjectKey('a#b.json')).toBeNull();
 	});
 });
 
@@ -42,8 +45,10 @@ describe('storeObject', () => {
 		const env = {
 			PUBLIC_ORIGIN: 'https://cdn.designxdevelop.com',
 			CDN_BUCKET: {
+				head: async () => null,
 				put: async (key, _body, opts) => {
 					puts.push({ key, opts });
+					return { key };
 				},
 			},
 		};
@@ -57,6 +62,29 @@ describe('storeObject', () => {
 		expect(result.ok).toBe(true);
 		expect(result.cacheControl).toBe(IMMUTABLE_CACHE_CONTROL);
 		expect(puts[0].opts.httpMetadata.cacheControl).toBe(IMMUTABLE_CACHE_CONTROL);
+		expect(puts[0].opts.onlyIf.get('If-None-Match')).toBe('*');
+	});
+
+	it('refuses to overwrite an immutable snapshot even when overwrite is true', async () => {
+		const env = {
+			CDN_BUCKET: {
+				head: async () => ({ key: 'heard/hp/prod/personalization.abc123.js' }),
+				put: async () => {
+					throw new Error('put should not be called');
+				},
+			},
+		};
+		const result = await storeObject(env, {
+			key: 'heard/hp/prod/personalization.abc123.js',
+			body: 'console.log(1)',
+			cacheControl: IMMUTABLE_CACHE_CONTROL,
+			overwrite: true,
+		});
+		expect(result).toEqual({
+			ok: false,
+			code: 'EXISTS',
+			key: 'heard/hp/prod/personalization.abc123.js',
+		});
 	});
 
 	it('rejects Cache-Control values outside the allowlist', async () => {

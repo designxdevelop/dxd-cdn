@@ -4,7 +4,7 @@
  */
 
 import { CONTENT_TYPES } from '../config/constants.js';
-import { applyPublicCacheHeaders, notModifiedResponse } from '../utils/cache.js';
+import { applyPublicCacheHeaders, preconditionResponse } from '../utils/cache.js';
 import { trackFileRequest } from '../utils/files.js';
 
 /**
@@ -34,6 +34,9 @@ export async function handleMp4Stream(request, object, env, path) {
 		'Access-Control-Allow-Origin': '*',
 	});
 	applyPublicCacheHeaders(headers, object, path);
+
+	const precond = preconditionResponse(request, object, headers);
+	if (precond) return precond;
 
 	if (request.headers.has('range')) {
 		try {
@@ -113,9 +116,6 @@ export async function handleMp4Stream(request, object, env, path) {
 			});
 		}
 	}
-
-	const notModified = notModifiedResponse(request, object.httpEtag, headers);
-	if (notModified) return notModified;
 
 	const full = await fullMp4Object(object, env, path);
 	if (!full) {

@@ -222,7 +222,7 @@ export class DxdCdnClient {
       body: input.body,
       contentType: input.contentType,
       cacheControl: input.immutableCacheControl,
-      overwrite: true,
+      overwrite: false,
     });
 
     const live = await this.putObject({

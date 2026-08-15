@@ -11,7 +11,9 @@ import { CONTENT_TYPES, DEFAULT_CDN_ORIGIN, IMMUTABLE_CACHE_CONTROL, MUTABLE_CAC
 export function normalizeObjectKey(path) {
 	if (!path || typeof path !== 'string') return null;
 	const cleaned = path.replace(/^\/+/, '').replace(/\\/g, '/');
-	if (!cleaned || cleaned.includes('..') || cleaned.startsWith('api/')) return null;
+	if (!cleaned || cleaned.includes('?') || cleaned.includes('#') || cleaned.startsWith('api/')) return null;
+	const segments = cleaned.split('/');
+	if (segments.some((segment) => !segment || segment === '.' || segment === '..')) return null;
 	return cleaned;
 }
 
@@ -105,22 +107,30 @@ export async function storeObject(env, input) {
 
 	const contentType = contentTypeForKey(key, input.contentType);
 	const cacheControl = cache.cacheControl;
-	const overwrite = input.overwrite !== false;
 	const origin = publicOrigin(env, input.origin);
+	const createOnly = cacheControl === IMMUTABLE_CACHE_CONTROL || input.overwrite === false;
 
-	if (!overwrite) {
+	if (createOnly) {
 		const existing = await env.CDN_BUCKET.head(key);
 		if (existing) {
 			return { ok: false, code: 'EXISTS', key };
 		}
 	}
 
-	await env.CDN_BUCKET.put(key, input.body, {
+	const putOptions = {
 		httpMetadata: {
 			contentType,
 			cacheControl,
 		},
-	});
+	};
+	if (createOnly) {
+		putOptions.onlyIf = new Headers({ 'If-None-Match': '*' });
+	}
+
+	const written = await env.CDN_BUCKET.put(key, input.body, putOptions);
+	if (createOnly && written === null) {
+		return { ok: false, code: 'EXISTS', key };
+	}
 
 	return {
 		ok: true,

@@ -41,6 +41,39 @@ export function etagMatches(incoming, etag) {
 }
 
 /**
+ * RFC 9110 origin evaluation for GET/HEAD. Returns 304/412 or null to continue.
+ * @param {Request} request
+ * @param {{ httpEtag?: string, uploaded?: Date }} object
+ * @returns {304|412|null}
+ */
+export function getPreconditionStatus(request, object) {
+	const ifMatch = request.headers.get('If-Match');
+	const ifUnmodified = request.headers.get('If-Unmodified-Since');
+	const ifNoneMatch = request.headers.get('If-None-Match');
+	const ifModified = request.headers.get('If-Modified-Since');
+	const uploadedMs = object?.uploaded instanceof Date ? object.uploaded.getTime() : NaN;
+
+	if (ifMatch) {
+		if (!etagMatches(ifMatch, object?.httpEtag)) return 412;
+	} else if (ifUnmodified) {
+		const since = Date.parse(ifUnmodified);
+		if (!Number.isNaN(since) && !Number.isNaN(uploadedMs) && uploadedMs > since) return 412;
+	}
+
+	if (ifNoneMatch) {
+		if (etagMatches(ifNoneMatch, object?.httpEtag)) return 304;
+		return null;
+	}
+
+	if (ifModified) {
+		const since = Date.parse(ifModified);
+		if (!Number.isNaN(since) && !Number.isNaN(uploadedMs) && uploadedMs <= since) return 304;
+	}
+
+	return null;
+}
+
+/**
  * @param {string} value
  * @returns {string}
  */
@@ -93,4 +126,16 @@ export function applyPublicCacheHeaders(headers, object, key) {
 export function notModifiedResponse(request, etag, headers) {
 	if (!etagMatches(request.headers.get('If-None-Match'), etag)) return null;
 	return new Response(null, { status: 304, headers });
+}
+
+/**
+ * @param {Request} request
+ * @param {{ httpEtag?: string, uploaded?: Date }} object
+ * @param {Headers} headers
+ * @returns {Response|null}
+ */
+export function preconditionResponse(request, object, headers) {
+	const status = getPreconditionStatus(request, object);
+	if (!status) return null;
+	return new Response(null, { status, headers });
 }

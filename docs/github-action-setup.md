@@ -62,13 +62,21 @@ env:
 
 ### 3. Add GitHub Secrets
 
-Go to your repository's **Settings → Secrets and variables → Actions** and add these secrets:
+Prefer the Objects API. Do **not** give client repos R2 API tokens — rclone/S3 bypasses per-object `Cache-Control`.
 
-| Secret Name | Description | How to Get |
-|-------------|-------------|------------|
-| `R2_ACCESS_KEY_ID` | Cloudflare R2 Access Key ID | Cloudflare Dashboard → R2 → Manage R2 API Tokens |
-| `R2_SECRET_ACCESS_KEY` | Cloudflare R2 Secret Access Key | Same as above |
-| `CLOUDFLARE_ACCOUNT_ID` | Your Cloudflare Account ID | Cloudflare Dashboard → Overview → Account ID (right sidebar) |
+Go to **Settings → Secrets and variables → Actions** and add:
+
+| Secret Name | Description |
+|-------------|-------------|
+| `DXD_CDN_UPLOAD_PASSWORD` | Same value as the CDN Worker `UPLOAD_PASSWORD` secret |
+
+Optional: `DXD_CDN_ORIGIN` (defaults to `https://cdn.designxdevelop.com`).
+
+Publish with `@dxd/cdn` (`putObject` / `publishHashedAsset`) or `PUT /api/objects`. See [api-objects.md](./api-objects.md).
+
+#### Legacy rclone / R2 tokens
+
+Older workflows used `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, and `CLOUDFLARE_ACCOUNT_ID` with rclone. Treat that as legacy: it does not set per-object cache metadata, and live URLs can stick in browsers as `immutable`. Do not add new client repos on this path.
 
 ### 4. Configure Build Step (If Needed)
 
@@ -177,9 +185,9 @@ Make sure your `BUILD_DIR` matches the actual output directory of your build pro
 
 ### "Permission denied" or "Access denied"
 
-1. Verify all three secrets are set correctly
-2. Make sure the R2 API token has "Edit" permissions
-3. Check that the Cloudflare Account ID is correct
+1. Verify `DXD_CDN_UPLOAD_PASSWORD` is set (or, for a legacy rclone workflow, the R2 token secrets)
+2. Make sure the CDN upload password matches the Worker secret
+3. Check that object keys and `X-DXD-Cache-Control` are set on publish
 
 ### Files not updating
 

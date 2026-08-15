@@ -58,4 +58,20 @@ describe('fetchGithub', () => {
 			/Blocked GitHub redirect/,
 		);
 	});
+
+	test('refuses HTTP redirects even to GitHub hosts', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn().mockResolvedValue(
+				new Response(null, {
+					status: 302,
+					headers: { Location: 'http://raw.githubusercontent.com/owner/repo/main/file.js' },
+				}),
+			),
+		);
+
+		await expect(fetchGithub('https://api.github.com/repos/a/b', { GITHUB_TOKEN: 'secret' })).rejects.toThrow(
+			/Blocked GitHub redirect/,
+		);
+	});
 });

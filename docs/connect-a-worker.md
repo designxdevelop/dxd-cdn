@@ -12,7 +12,7 @@ Use the same split for new client Workers.
 
 ## Key layout
 
-```
+```text
 {client}/{project}/{env}/…
 ```
 
@@ -62,7 +62,7 @@ Webflow / client sites keep a **stable** script tag:
 
 Live keys use `Cache-Control: public, max-age=0, must-revalidate` on the browser **and** Cloudflare cache headers. Browsers revalidate on the next page load — no hard refresh, no `?v=` on the embed. There is no 60s edge copy of live files; each GET hits the Worker/R2 (usually a cheap `304`). Hashed snapshots stay `immutable` for rollback.
 
-After this Worker is deployed, **republish existing live keys** (Heard `personalization.js`, Studio `config.json`, etc.). Objects already stored as `immutable` stay sticky until overwritten. Browsers that already cached those URLs as immutable also need that republish.
+After this Worker is deployed, **republish existing live keys** (Heard `personalization.js`, Studio `config.json`, etc.). Overwriting R2 updates new visitors. Browsers that already stored the URL as `immutable` will not recheck — those clients need a new hashed/versioned URL or an explicit cache purge.
 
 ### Secrets
 
@@ -122,7 +122,7 @@ Use this when a Worker **generates** an asset at runtime (rendered HTML, per-ten
 
 Public GET, no auth:
 
-```
+```text
 https://cdn.designxdevelop.com/{key}
 ```
 
