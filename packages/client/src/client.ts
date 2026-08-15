@@ -217,22 +217,21 @@ export class DxdCdnClient {
     const versionedKey = `${prefix}/${input.snapshotName}`;
     const liveKey = `${prefix}/${input.liveName}`;
 
-    const [versioned, live] = await Promise.all([
-      this.putObject({
-        key: versionedKey,
-        body: input.body,
-        contentType: input.contentType,
-        cacheControl: input.immutableCacheControl,
-        overwrite: true,
-      }),
-      this.putObject({
-        key: liveKey,
-        body: input.body,
-        contentType: input.contentType,
-        cacheControl: input.mutableCacheControl,
-        overwrite: true,
-      }),
-    ]);
+    const versioned = await this.putObject({
+      key: versionedKey,
+      body: input.body,
+      contentType: input.contentType,
+      cacheControl: input.immutableCacheControl,
+      overwrite: true,
+    });
+
+    const live = await this.putObject({
+      key: liveKey,
+      body: input.body,
+      contentType: input.contentType,
+      cacheControl: input.mutableCacheControl,
+      overwrite: true,
+    });
 
     return {
       versioned,
