@@ -212,7 +212,7 @@
 							targetPath = path.slice(0, -ext.length) + 'min.' + ext;
 						}
 
-						const dxdUrl = `https://cdn.designxdevelop.com/${repo}/${version}/${targetPath}`;
+						const dxdUrl = `https://cdn.designxdevelop.com/gh/${repo}/${version}/${targetPath}`;
 						dxdUrlInput.value = dxdUrl;
 						await handleUrlGenerated(dxdUrl);
 						return;
@@ -297,7 +297,7 @@
 				showNotification('Checking file status...', false);
 				try {
 					// Convert CDN URL back to GitHub URL for pre-caching
-					const [, repo, version, path] = dxdUrl.match(/cdn\.designxdevelop\.com\/([^\/]+)\/([^\/]+)\/(.+)/);
+					const [, repo, version, path] = dxdUrl.match(/cdn\.designxdevelop\.com\/gh\/([^\/]+)\/([^\/]+)\/(.+)/);
 					const githubUrl = `https://raw.githubusercontent.com/${currentOwner}/${repo}/${version}/${path}`;
 
 					const response = await fetch(dxdUrl, {
@@ -356,7 +356,7 @@
 					targetPath = path.slice(0, -ext.length) + 'min.' + ext;
 				}
 
-				const dxdUrl = `https://cdn.designxdevelop.com/${repo}/${targetVersion}/${targetPath}`;
+				const dxdUrl = `https://cdn.designxdevelop.com/gh/${repo}/${targetVersion}/${targetPath}`;
 				const previousUrl = dxdUrlInput.value;
 				dxdUrlInput.value = dxdUrl;
 

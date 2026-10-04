@@ -3,7 +3,7 @@
  *
  * A hybrid CDN that supports:
  * 1. File upload and browsing (marketing-cdn features)
- * 2. GitHub proxy with versioning and minification
+ * 2. GitHub proxy with versioning and minification, under /gh/
  * 3. Direct R2 file serving for uploaded assets
  */
 
@@ -14,10 +14,11 @@ import { handlePutObjectApi, handleGetObjectApi } from './handlers/objects-api.j
 import { handleR2Response, handleGitHubResponse } from './handlers/responses.js';
 import { handleMp4Stream } from './handlers/streaming.js';
 import { handleUploadGet, handleUploadPost } from './handlers/upload.js';
+import { PUBLIC_READ_METHODS, isGitHubProxyPath, legacyGitHubProxyPathname, parseGitHubProxyPath } from './routing.js';
 import { CdnObjects } from './services/cdn-objects.js';
 import { getLatestRelease } from './services/github.js';
 import { handleSpecialPages } from './templates/pages.js';
-import { applyPublicCacheHeaders, cacheHeadersForObject, etagMatches, notModifiedResponse } from './utils/cache.js';
+import { applyPublicCacheHeaders, cacheHeadersForObject, notModifiedResponse } from './utils/cache.js';
 import { handleCorsPreflightRequest, getCorsHeaders, jsonApiHeaders } from './utils/cors.js';
 import { trackFileRequest } from './utils/files.js';
 import { failedOnlyIfStatus, getR2Object, hasR2Body, headR2Object } from './utils/r2.js';
@@ -109,32 +110,22 @@ export default {
 			}
 
 			// ========== FILE SERVING LOGIC ==========
-			// Determine if this is a direct R2 file or a GitHub proxy request
-			// GitHub proxy format: /:repo/:version/:file (where version looks like v1.0.0, latest, or a commit hash)
-			// Direct R2 format: /:client/:project/:env/:file or any other path
+			// /gh/:repo/:version/:file is the GitHub proxy. Everything else is an R2
+			// object key, so stored Cache-Control always wins on the public path.
 
-			const pathParts = path.split('/');
-
-			// Check if this looks like a GitHub proxy request
-			// GitHub version patterns: 'latest', 'v1.2.3', commit hashes (7+ hex chars)
-			const isGitHubVersionPattern = (str) => {
-				if (str === 'latest') return true;
-				if (/^v?\d+\.\d+(\.\d+)?(-[a-zA-Z0-9.]+)?$/.test(str)) return true; // semver
-				if (/^[a-f0-9]{7,40}$/.test(str)) return true; // commit hash
-				return false;
-			};
-
-			// Determine routing: if pathParts[1] looks like a version, use GitHub proxy
-			// Otherwise, serve directly from R2
-			const useGitHubProxy = pathParts.length >= 3 && isGitHubVersionPattern(pathParts[1]);
-
-			if (useGitHubProxy) {
-				// ========== GITHUB PROXY ROUTE ==========
-				return handleGitHubProxyRequest(request, env, ctx, url, path, pathParts);
-			} else {
-				// ========== DIRECT R2 SERVING ==========
-				return handleDirectR2Request(request, env, ctx, url, path);
+			if (!PUBLIC_READ_METHODS.includes(request.method)) {
+				return methodNotAllowed();
 			}
+
+			if (isGitHubProxyPath(path)) {
+				const proxy = parseGitHubProxyPath(path);
+				if (!proxy) {
+					return new Response('Invalid path format. Use: /gh/repo/version/file-path', { status: 400 });
+				}
+				return handleGitHubProxyRequest(request, env, ctx, proxy);
+			}
+
+			return handleDirectR2Request(request, env, ctx, url, path);
 		} catch (error) {
 			console.error('CDN Error:', {
 				error: error.message,
@@ -153,39 +144,18 @@ export default {
 };
 
 /**
- * Handle GitHub proxy requests (existing functionality)
- * URL format: /:repo/:version/:file
+ * Handle GitHub proxy requests (legacy functionality)
+ * URL format: /gh/:repo/:version/:file
  */
-async function handleGitHubProxyRequest(request, env, ctx, url, path, pathParts) {
-	// Try to get from cache first with ETag support
-	const cache = caches.default;
-	const cacheKey = new Request(url.toString(), request);
+async function handleGitHubProxyRequest(request, env, ctx, proxy) {
+	const { repo, version } = proxy;
+	let filePath = proxy.filePath;
 	let response = null;
-
-	if (pathParts[1] !== 'latest') {
-		response = await cache.match(cacheKey);
-		if (response) {
-			if (etagMatches(request.headers.get('If-None-Match'), response.headers.get('ETag'))) {
-				return new Response(null, { status: 304, headers: response.headers });
-			}
-			response = new Response(response.body, response);
-			response.headers.set('CF-Cache-Status', 'HIT');
-			return response;
-		}
-	}
-
-	const repo = pathParts[0];
-	const version = pathParts[1];
-	let filePath = pathParts.slice(2).join('/');
 
 	// Check if .min version is requested
 	const shouldMinify = filePath.endsWith('.min.js') || filePath.endsWith('.min.css');
 	if (shouldMinify) {
 		filePath = filePath.replace('.min', '');
-	}
-
-	if (!repo || !version || !filePath) {
-		return new Response('Invalid path format. Use: /repo/version/file-path', { status: 400 });
 	}
 
 	const extension = filePath.split('.').pop().toLowerCase();
@@ -229,10 +199,6 @@ async function handleGitHubProxyRequest(request, env, ctx, url, path, pathParts)
 			statusText: response.statusText,
 		});
 
-		if (version !== 'latest') {
-			ctx.waitUntil(cache.put(cacheKey, response.clone()));
-		}
-
 		return response;
 	} catch (error) {
 		console.error('File fetch error:', {
@@ -259,14 +225,14 @@ async function handleDirectR2Request(request, env, ctx, url, path) {
 	if (extensionHint === 'mp4') {
 		const found = await headR2Object(env.CDN_BUCKET, request, path);
 		if (!found.object) {
-			return new Response('File not found', { status: 404 });
+			return objectNotFound(url, path);
 		}
 		return handleMp4Stream(request, found.object, env, found.key);
 	}
 
 	const found = await getR2Object(env.CDN_BUCKET, request, path);
 	if (!found.object) {
-		return new Response('File not found', { status: 404 });
+		return objectNotFound(url, path);
 	}
 
 	const { object, key } = found;
@@ -297,4 +263,39 @@ async function handleDirectR2Request(request, env, ctx, url, path) {
 	});
 
 	return new Response(object.body, { headers });
+}
+
+/**
+ * No object at this key. Pre-`/gh/` GitHub URLs are redirected rather than
+ * proxied so an object at the same key always wins.
+ * @param {URL} url
+ * @param {string} path
+ * @returns {Response}
+ */
+function objectNotFound(url, path) {
+	const legacyPathname = legacyGitHubProxyPathname(path);
+	if (legacyPathname) {
+		const target = new URL(url);
+		target.pathname = legacyPathname;
+		return new Response(null, {
+			status: 301,
+			headers: {
+				Location: target.toString(),
+				// Not cached, so storing an object at this key takes effect immediately.
+				'Cache-Control': 'no-store',
+				...getCorsHeaders(),
+			},
+		});
+	}
+	return new Response('File not found', { status: 404 });
+}
+
+/**
+ * @returns {Response}
+ */
+function methodNotAllowed() {
+	return new Response('Method Not Allowed', {
+		status: 405,
+		headers: { Allow: PUBLIC_READ_METHODS.join(', ') },
+	});
 }
