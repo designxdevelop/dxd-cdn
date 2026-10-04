@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { IMMUTABLE_CACHE_CONTROL, MUTABLE_CACHE_CONTROL } from '../config/constants.js';
 import { loadObjectMeta, normalizeObjectKey, objectErrorStatus, resolveCacheControl, storeObject } from '../services/objects.js';
+import { OPERATOR_SCOPE } from '../services/scopes.js';
 
 describe('normalizeObjectKey', () => {
 	it('rejects traversal and api/ prefixes', () => {
@@ -25,7 +26,7 @@ describe('storeObject', () => {
 			},
 		};
 
-		const result = await storeObject(env, {
+		const result = await storeObject(env, OPERATOR_SCOPE, {
 			key: 'heard/hp/prod/personalization.js',
 			body: 'console.log(1)',
 			contentType: 'application/javascript',
@@ -53,7 +54,7 @@ describe('storeObject', () => {
 			},
 		};
 
-		const result = await storeObject(env, {
+		const result = await storeObject(env, OPERATOR_SCOPE, {
 			key: 'heard/hp/prod/personalization.abc123.js',
 			body: 'console.log(1)',
 			cacheControl: IMMUTABLE_CACHE_CONTROL,
@@ -74,7 +75,7 @@ describe('storeObject', () => {
 				},
 			},
 		};
-		const result = await storeObject(env, {
+		const result = await storeObject(env, OPERATOR_SCOPE, {
 			key: 'heard/hp/prod/personalization.abc123.js',
 			body: 'console.log(1)',
 			cacheControl: IMMUTABLE_CACHE_CONTROL,
@@ -95,7 +96,7 @@ describe('storeObject', () => {
 				},
 			},
 		};
-		const rejected = await storeObject(env, {
+		const rejected = await storeObject(env, OPERATOR_SCOPE, {
 			key: 'heard/hp/prod/personalization.js',
 			body: 'console.log(1)',
 			cacheControl: 'public, max-age=60',
@@ -114,7 +115,7 @@ describe('storeObject', () => {
 				head: async () => ({ key: 'x' }),
 			},
 		};
-		const result = await storeObject(env, { key: 'x', body: 'y', overwrite: false });
+		const result = await storeObject(env, OPERATOR_SCOPE, { key: 'x', body: 'y', overwrite: false });
 		expect(result).toEqual({ ok: false, code: 'EXISTS', key: 'x' });
 	});
 });
@@ -157,7 +158,7 @@ describe('loadObjectMeta', () => {
 			},
 		};
 
-		const result = await loadObjectMeta(env, 'heard/a.txt');
+		const result = await loadObjectMeta(env, OPERATOR_SCOPE, 'heard/a.txt');
 		expect(result).toMatchObject({
 			ok: true,
 			key: 'heard/a.txt',

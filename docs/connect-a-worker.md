@@ -71,6 +71,18 @@ After this Worker is deployed, **republish existing live keys** (Heard `personal
 | `DXD_CDN_UPLOAD_PASSWORD` | `.dev.vars` locally; GitHub Actions secret in CI |
 | `DXD_CDN_ORIGIN` | Optional. Defaults to `https://cdn.designxdevelop.com` |
 
+Give the app its **own scoped token**, not the operator secret. Mint one in the
+`dxd-cdn` repo and put it in the app's CI secret under the same variable name:
+
+```bash
+node scripts/mint-app-token.mjs --app heard --prefixes heard/ --ops put,get
+```
+
+A scoped token can only write under its own prefixes, so a bug or a leak in one
+app cannot overwrite or delete another's files. `UPLOAD_PASSWORD` can reach the
+whole bucket and belongs only where you do operator work. Details and the
+`APP_TOKENS` format: [api-objects.md](./api-objects.md#scoped-app-tokens).
+
 Do not give client repos R2 API tokens. The Objects API is the write path; rclone/S3 bypasses per-object cache metadata.
 
 Until `@dxd/cdn` is on a registry:
@@ -83,9 +95,12 @@ Until `@dxd/cdn` is on a registry:
 
 Same Cloudflare account as `dxd-cdn`. The Worker talks to CDN over a [service binding](https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/rpc/) — nothing goes over the public internet, and `UPLOAD_PASSWORD` does not live in the client Worker.
 
-**Binding `CdnObjects` can put/get every key in the bucket.** Only bind Workers you trust; there is no per-client prefix check.
-
 **dxd-cdn** already exports `CdnObjects`.
+
+`CdnObjects.putObject()` / `getObjectMeta()` run as the operator and can reach
+**every** key in the bucket — only bind Workers you trust that much. A Worker
+that should stay inside its own prefix calls `scope(token)` first with its own
+`APP_TOKENS` token and works through the handle it returns.
 
 **Client Worker `wrangler.toml`:**
 
@@ -113,6 +128,29 @@ export default {
 ```js
 const meta = await env.DXD_CDN.getObjectMeta('heard/hp/prod/config.json');
 ```
+
+### Scoped binding (prefix-limited)
+
+Put the app's token in the **client** Worker's secrets and narrow the binding at
+the start of each request. Writes outside the token's prefixes throw instead of
+succeeding:
+
+```js
+export default {
+	async fetch(request, env) {
+		const cdn = await env.DXD_CDN.scope(env.DXD_CDN_APP_TOKEN);
+		await cdn.putObject({
+			key: 'heard/hp/prod/config.json',
+			body: JSON.stringify({ ok: true }),
+			contentType: 'application/json',
+		});
+		return new Response('published');
+	},
+};
+```
+
+`scope()` throws `Unknown app token` if the token is not in `APP_TOKENS`, and the
+handle it returns reports its own limits via `cdn.scope`.
 
 Public browsers still `GET https://cdn.designxdevelop.com/{key}` — they never call the RPC.
 

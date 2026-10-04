@@ -44,7 +44,8 @@ src/
     cdn-objects.js      # CdnObjects WorkerEntrypoint (service binding)
     github.js           # GitHub API integration
     minification.js     # Basic JS/CSS minification
-    objects.js          # R2 put/get (no HTTP statuses)
+    objects.js          # R2 put/get + scope enforcement (no HTTP statuses)
+    scopes.js           # APP_TOKENS parsing, token → {app, prefixes, ops}
   templates/
     browse.js           # Browse page HTML templates
     pages.js            # Special pages (speed-test, convert)
@@ -85,11 +86,15 @@ packages/
 ### 3. Secrets Setup
 
 ```bash
-# Required for file upload/browse authentication
+# Required for file upload/browse authentication and operator API access
 wrangler secret put UPLOAD_PASSWORD
 
 # Required for GitHub proxy functionality
 wrangler secret put GITHUB_TOKEN
+
+# Optional: scoped per-app tokens for the Objects API
+# node scripts/mint-app-token.mjs --app heard --prefixes heard/ --ops put,get
+wrangler secret put APP_TOKENS
 ```
 
 For the GitHub token:
@@ -159,10 +164,31 @@ Programmatic publish/pull for Studio, Heard, client Workers, and CI. Prefer this
 
 ```
 PUT /api/objects
-Authorization: Bearer <UPLOAD_PASSWORD>
+Authorization: Bearer <app token or UPLOAD_PASSWORD>
 X-DXD-Object-Key: heard/hp/prod/personalization.js
 X-DXD-Cache-Control: public, max-age=0, must-revalidate   # omit for this default
 ```
+
+#### Scoped app tokens
+
+Each app gets its own token limited to its own key prefixes, so one app cannot
+overwrite or delete another's files. Tokens live in a single `APP_TOKENS` secret
+as a JSON object keyed by `sha256(token)`:
+
+```jsonc
+{
+  "<sha256(token)>": { "app": "heard", "prefixes": ["heard/"], "ops": ["put", "get"] }
+}
+```
+
+```bash
+node scripts/mint-app-token.mjs --app heard --prefixes heard/ --ops put,get
+```
+
+`UPLOAD_PASSWORD` remains the operator token (every op, whole bucket) and is the
+only credential the `/browse`, `/upload`, and `/api/file*` routes accept. Unknown
+token → `401`; known token reaching outside its scope → `403`. Full format and
+semantics: [docs/api-objects.md](docs/api-objects.md#scoped-app-tokens).
 
 `X-DXD-Cache-Control` allowlists two values (anything else is 400):
 
@@ -264,7 +290,8 @@ unless you override `ORIGIN`.
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `UPLOAD_PASSWORD` | Yes | Password for upload/browse/API access |
+| `UPLOAD_PASSWORD` | Yes | Operator token: upload/browse/API access, whole bucket |
+| `APP_TOKENS` | No | JSON of scoped per-app tokens keyed by `sha256(token)`. Without it, only the operator token works |
 | `GITHUB_TOKEN` | For GitHub proxy | GitHub Personal Access Token |
 | `ENVIRONMENT` | No | Set to "production" in prod |
 | `PUBLIC_ORIGIN` | No | Public origin in RPC/service-binding URLs (HTTP handlers use the request origin). Production: `https://cdn.designxdevelop.com` |

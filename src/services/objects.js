@@ -1,8 +1,12 @@
 /**
  * R2 object storage. HTTP handlers and CdnObjects adapt these results to status codes / RPC errors.
+ *
+ * Every entry point takes a `Scope` and checks it here rather than in the
+ * adapters, so the HTTP API and the RPC entrypoint enforce the same rules.
  */
 
 import { CONTENT_TYPES, DEFAULT_CDN_ORIGIN, IMMUTABLE_CACHE_CONTROL, MUTABLE_CACHE_CONTROL } from '../config/constants.js';
+import { scopeAllows } from './scopes.js';
 
 /**
  * @param {string} path
@@ -18,7 +22,11 @@ export function normalizeObjectKey(path) {
 }
 
 /**
- * @param {'INVALID_KEY'|'EXISTS'|'NOT_FOUND'|'INVALID_CACHE_CONTROL'} code
+ * @typedef {'INVALID_KEY'|'EXISTS'|'NOT_FOUND'|'INVALID_CACHE_CONTROL'|'FORBIDDEN'} ObjectErrorCode
+ */
+
+/**
+ * @param {ObjectErrorCode} code
  * @returns {string}
  */
 export function objectErrorMessage(code) {
@@ -31,13 +39,15 @@ export function objectErrorMessage(code) {
 			return 'Not found';
 		case 'INVALID_CACHE_CONTROL':
 			return 'Invalid Cache-Control';
+		case 'FORBIDDEN':
+			return 'Key is outside this token scope';
 		default:
 			return 'Object error';
 	}
 }
 
 /**
- * @param {'INVALID_KEY'|'EXISTS'|'NOT_FOUND'|'INVALID_CACHE_CONTROL'} code
+ * @param {ObjectErrorCode} code
  * @returns {number}
  */
 export function objectErrorStatus(code) {
@@ -46,6 +56,8 @@ export function objectErrorStatus(code) {
 			return 400;
 		case 'INVALID_CACHE_CONTROL':
 			return 400;
+		case 'FORBIDDEN':
+			return 403;
 		case 'EXISTS':
 			return 409;
 		case 'NOT_FOUND':
@@ -95,12 +107,14 @@ function contentTypeForKey(key, explicit) {
 
 /**
  * @param {Object} env
+ * @param {import('./scopes.js').Scope} scope
  * @param {{ key: string, body: BodyInit, contentType?: string, cacheControl?: string, overwrite?: boolean, origin?: string }} input
- * @returns {Promise<{ ok: true, key: string, url: string, cacheControl: string } | { ok: false, code: 'INVALID_KEY'|'EXISTS'|'INVALID_CACHE_CONTROL', key?: string }>}
+ * @returns {Promise<{ ok: true, key: string, url: string, cacheControl: string } | { ok: false, code: ObjectErrorCode, key?: string }>}
  */
-export async function storeObject(env, input) {
+export async function storeObject(env, scope, input) {
 	const key = normalizeObjectKey(input.key);
 	if (!key) return { ok: false, code: 'INVALID_KEY' };
+	if (!scopeAllows(scope, 'put', key)) return { ok: false, code: 'FORBIDDEN', key };
 
 	const cache = resolveCacheControl(input.cacheControl);
 	if (!cache.ok) return { ok: false, code: 'INVALID_CACHE_CONTROL', key };
@@ -132,6 +146,8 @@ export async function storeObject(env, input) {
 		return { ok: false, code: 'EXISTS', key };
 	}
 
+	console.log('object stored', { app: scope.app, key, cacheControl });
+
 	return {
 		ok: true,
 		key,
@@ -143,13 +159,15 @@ export async function storeObject(env, input) {
 /**
  * Metadata only (`head`). Does not download the object body.
  * @param {Object} env
+ * @param {import('./scopes.js').Scope} scope
  * @param {string} key
  * @param {string} [origin]
- * @returns {Promise<{ ok: true, key: string, size: number, etag: string, uploaded: Date, contentType: string|null, cacheControl: string|null, url: string } | { ok: false, code: 'INVALID_KEY'|'NOT_FOUND', key?: string }>}
+ * @returns {Promise<{ ok: true, key: string, size: number, etag: string, uploaded: Date, contentType: string|null, cacheControl: string|null, url: string } | { ok: false, code: ObjectErrorCode, key?: string }>}
  */
-export async function loadObjectMeta(env, key, origin) {
+export async function loadObjectMeta(env, scope, key, origin) {
 	const normalized = normalizeObjectKey(key);
 	if (!normalized) return { ok: false, code: 'INVALID_KEY' };
+	if (!scopeAllows(scope, 'get', normalized)) return { ok: false, code: 'FORBIDDEN', key: normalized };
 
 	const object = await env.CDN_BUCKET.head(normalized);
 	if (!object) return { ok: false, code: 'NOT_FOUND', key: normalized };
@@ -168,12 +186,14 @@ export async function loadObjectMeta(env, key, origin) {
 
 /**
  * @param {Object} env
+ * @param {import('./scopes.js').Scope} scope
  * @param {string} key
- * @returns {Promise<{ ok: true, key: string, object: R2ObjectBody } | { ok: false, code: 'INVALID_KEY'|'NOT_FOUND', key?: string }>}
+ * @returns {Promise<{ ok: true, key: string, object: R2ObjectBody } | { ok: false, code: ObjectErrorCode, key?: string }>}
  */
-export async function loadObjectBody(env, key) {
+export async function loadObjectBody(env, scope, key) {
 	const normalized = normalizeObjectKey(key);
 	if (!normalized) return { ok: false, code: 'INVALID_KEY' };
+	if (!scopeAllows(scope, 'get', normalized)) return { ok: false, code: 'FORBIDDEN', key: normalized };
 
 	const object = await env.CDN_BUCKET.get(normalized);
 	if (!object) return { ok: false, code: 'NOT_FOUND', key: normalized };

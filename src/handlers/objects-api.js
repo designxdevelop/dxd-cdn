@@ -1,6 +1,11 @@
 /**
  * Programmatic object put/get for any DXD app or client project.
- * Auth: Authorization Bearer UPLOAD_PASSWORD (or ?password= for parity with existing APIs).
+ *
+ * Auth: `Authorization: Bearer <token>` (or `?password=` for parity with the
+ * existing APIs). The token is either an `APP_TOKENS` entry, which is limited
+ * to its own prefixes and ops, or `UPLOAD_PASSWORD`, which is the operator
+ * token and can reach the whole bucket. Prefix and op checks live in
+ * src/services/objects.js; this module only maps the result to a status code.
  *
  * Keys are project-agnostic. Convention (recommended):
  *   {client}/{project}/{env}/...
@@ -10,6 +15,7 @@
  */
 
 import { loadObjectBody, loadObjectMeta, objectErrorMessage, objectErrorStatus, storeObject } from '../services/objects.js';
+import { resolveScope } from '../services/scopes.js';
 import { getCorsHeaders } from '../utils/cors.js';
 
 function jsonHeaders() {
@@ -42,23 +48,9 @@ function objectFailResponse(result) {
 }
 
 /**
- * @param {Request} request
- * @param {URL} url
- * @param {Object} env
- * @returns {boolean}
- */
-export function isAuthorizedUpload(request, url, env) {
-	if (!env.UPLOAD_PASSWORD) return false;
-	const header = request.headers.get('Authorization') || '';
-	const bearer = header.startsWith('Bearer ') ? header.slice(7) : '';
-	const queryPassword = url.searchParams.get('password') || '';
-	return bearer === env.UPLOAD_PASSWORD || queryPassword === env.UPLOAD_PASSWORD;
-}
-
-/**
  * PUT /api/objects
  * Headers:
- *   Authorization: Bearer <UPLOAD_PASSWORD>
+ *   Authorization: Bearer <app token or UPLOAD_PASSWORD>
  *   Content-Type: application/json | application/javascript | ...
  *   X-DXD-Object-Key: path/inside/bucket.json  (required)
  *   X-DXD-Cache-Control: optional Cache-Control for public GETs
@@ -69,7 +61,8 @@ export function isAuthorizedUpload(request, url, env) {
  *   { "key": "...", "body": "<string or base64>", "encoding": "utf8"|"base64", "cacheControl": "...", "contentType": "..." }
  */
 export async function handlePutObjectApi(request, env, url) {
-	if (!isAuthorizedUpload(request, url, env)) return unauthorized();
+	const scope = await resolveScope(request, url, env);
+	if (!scope) return unauthorized();
 
 	const envelope = request.headers.get('X-DXD-Json-Envelope') === 'true';
 	let key;
@@ -109,7 +102,7 @@ export async function handlePutObjectApi(request, env, url) {
 		body = await request.arrayBuffer();
 	}
 
-	const result = await storeObject(env, {
+	const result = await storeObject(env, scope, {
 		key,
 		body,
 		contentType,
@@ -131,13 +124,14 @@ export async function handlePutObjectApi(request, env, url) {
  * Public consumers should GET https://cdn…/{key} directly (no auth).
  */
 export async function handleGetObjectApi(request, env, url) {
-	if (!isAuthorizedUpload(request, url, env)) return unauthorized();
+	const scope = await resolveScope(request, url, env);
+	if (!scope) return unauthorized();
 
 	const key = url.searchParams.get('key') || '';
 	const as = url.searchParams.get('as') || 'meta';
 
 	if (as === 'body') {
-		const result = await loadObjectBody(env, key);
+		const result = await loadObjectBody(env, scope, key);
 		if (!result.ok) return objectFailResponse(result);
 		const headers = new Headers({
 			'Content-Type': result.object.httpMetadata?.contentType || 'application/octet-stream',
@@ -147,7 +141,7 @@ export async function handleGetObjectApi(request, env, url) {
 		return new Response(result.object.body, { headers });
 	}
 
-	const result = await loadObjectMeta(env, key, url.origin);
+	const result = await loadObjectMeta(env, scope, key, url.origin);
 	if (!result.ok) return objectFailResponse(result);
 
 	const { ok: _ok, ...meta } = result;

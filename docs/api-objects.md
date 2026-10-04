@@ -5,10 +5,62 @@ Shared by every DXD app and client project. The Worker does not know about Studi
 ## Auth
 
 ```
-Authorization: Bearer <UPLOAD_PASSWORD>
+Authorization: Bearer <token>
 ```
 
-Query `?password=` also works (same secret as `/upload`).
+Query `?password=<token>` also works.
+
+Two kinds of token reach this API:
+
+| Token | Scope |
+| --- | --- |
+| An `APP_TOKENS` entry | Only the prefixes and operations that entry grants |
+| `UPLOAD_PASSWORD` | Operator: every operation, the whole bucket |
+
+Give each app its own token. The operator secret should not travel to app CI.
+
+### Scoped app tokens
+
+`APP_TOKENS` is one secret holding a JSON object keyed by the **SHA-256 of each
+token**, so the plaintext only ever lives in the app that uses it:
+
+```jsonc
+{
+  "<sha256(token)>": { "app": "heard",  "prefixes": ["heard/"],      "ops": ["put", "get"] },
+  "<sha256(token)>": { "app": "studio", "prefixes": ["dxd-studio/"], "ops": ["put", "get", "list", "delete"] }
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `app` | Name logged on every write by that token |
+| `prefixes` | Key prefixes the token may touch. `"*"` means the whole bucket. A prefix matches at path-segment boundaries, so `heard` grants `heard/a.js` but not `heard-staging/a.js`. An exact key is a valid single-object prefix. |
+| `ops` | Any of `put`, `get`, `list`, `delete` |
+
+Mint one:
+
+```bash
+node scripts/mint-app-token.mjs --app heard --prefixes heard/ --ops put,get
+```
+
+It prints the token to hand to the app and the `APP_TOKENS` entry to merge, then:
+
+```bash
+wrangler secret put APP_TOKENS      # production
+# or add the one-line JSON to .dev.vars for local dev
+```
+
+An unknown token is `401`. A known token asking for a key outside its scope is
+`403`. Prefix and operation checks live in `src/services/objects.js`, so the
+HTTP API and the `CdnObjects` service binding cannot drift apart.
+
+Entries that are malformed (no `app`, no `prefixes`, no recognized `ops`) are
+ignored and logged. If the whole secret is unparseable, no app token works and
+`UPLOAD_PASSWORD` still does — an app-token mistake cannot lock you out.
+
+The operator routes (`/browse`, `/upload`, `/api/files`, `/api/file-stats`,
+`/api/file-content`, `/api/delete-file`) accept **only** `UPLOAD_PASSWORD`; an
+app token gets `401` there.
 
 ## Convention: key namespaces
 
@@ -51,7 +103,7 @@ Body: raw bytes.
 
 PUT allowlists only those two strings. Public GET honors the stored value for **all** of `Cache-Control`, `CDN-Cache-Control`, and `Cloudflare-CDN-Cache-Control`. `If-None-Match` / `If-Modified-Since` return `304` when the object is unchanged (R2 conditional GET, no body download).
 
-`@dxd/cdn` exports `MUTABLE_CACHE_CONTROL`, `IMMUTABLE_CACHE_CONTROL`, and `publishHashedAsset()` (Heard-style live + hashed snapshot). Client Workers on the same Cloudflare account can skip HTTP auth and bind `CdnObjects` — that binding can write **any** key in the bucket; see [connect-a-worker.md](./connect-a-worker.md).
+`@dxd/cdn` exports `MUTABLE_CACHE_CONTROL`, `IMMUTABLE_CACHE_CONTROL`, and `publishHashedAsset()` (Heard-style live + hashed snapshot). Client Workers on the same Cloudflare account can skip HTTP auth and bind `CdnObjects`; see [connect-a-worker.md](./connect-a-worker.md) for the full-access and scoped forms of that binding.
 
 Objects already stored as `immutable` (old PUT default, rclone) stay sticky in R2 until you overwrite them. Republish live keys after deploying this Worker. Browsers that already cached a URL as `immutable` will not revalidate — use a new hashed/versioned URL or purge for those clients.
 
