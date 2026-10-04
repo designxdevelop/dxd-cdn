@@ -14,13 +14,25 @@ routes = [
 binding = "CDN_BUCKET"
 bucket_name = "dxd-cdn"
 
+# Workers Caching. Immutable objects (hashed snapshots, /gh/ versioned files) get
+# a real edge copy and request collapsing. Live objects are governed by
+# LIVE_EDGE_MAX_AGE below; writes purge their own key via ctx.cache.purge().
+[cache]
+enabled = true
+
 # Environment variables
 [vars]
 ENVIRONMENT = "production"
 PUBLIC_ORIGIN = "https://cdn.designxdevelop.com"
+# Edge TTL for live objects, in seconds. 0 keeps every live GET reaching the
+# Worker, so a republish is visible immediately with no reliance on purge.
+# Raise it only once purge-on-write is confirmed working in production: a failed
+# purge hides a publish for up to this long. Browsers always revalidate.
+LIVE_EDGE_MAX_AGE = 0
 
 # Secrets (set via: wrangler secret put UPLOAD_PASSWORD)
 # UPLOAD_PASSWORD - Required for /upload and /browse routes
+# APP_TOKENS - Optional scoped per-app tokens for the Objects API
 
 [observability]
 enabled = true

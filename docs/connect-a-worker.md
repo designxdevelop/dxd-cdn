@@ -170,9 +170,16 @@ CORS is `*`. Mutable files revalidate; hashed files are cached for a year.
 
 | Object | Browser | Cloudflare |
 | --- | --- | --- |
-| Live pointer (`personalization.js`, `config.json`, `/upload` files) | Revalidate every navigation (`max-age=0, must-revalidate`) | Same header; no timed edge copy |
+| Live pointer (`personalization.js`, `config.json`, `/upload` files) | Revalidate every navigation (`max-age=0, must-revalidate`) | `LIVE_EDGE_MAX_AGE` seconds, `0` by default (no edge copy) |
 | Hashed / versioned (`*.abc123.js`, GitHub `/gh/:repo/:version/:file`) | 1 year `immutable` | 1 year `immutable` |
 
-Overwrite the live key and the next navigation sees the new bytes (or a `304` if nothing changed). Do not turn on Workers Cache for live URLs until there is purge-on-PUT — a 60s edge copy would hide publishes.
+Overwrite the live key and the next navigation sees the new bytes (or a `304` if nothing changed).
+
+Workers Caching is enabled, so immutable snapshots now get a real edge copy and
+request collapsing. Live keys are still served straight from the Worker, because
+`LIVE_EDGE_MAX_AGE` is `0`. Every live write purges that key's own cache tag, so
+giving live URLs an edge copy is a one-value change in `wrangler.toml` — see
+[api-objects.md](./api-objects.md#live-objects-at-the-edge) for what to verify
+first.
 
 See [api-objects.md](./api-objects.md) for headers and the HTTP contract.

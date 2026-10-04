@@ -101,7 +101,44 @@ Body: raw bytes.
 | Versioned / hashed files (`v12.json`, `personalization.abc123.js`) | `public, max-age=31536000, immutable` |
 | Mutable “live” pointers (`config.json`, `personalization.js`) | `public, max-age=0, must-revalidate` (this is also the PUT default) |
 
-PUT allowlists only those two strings. Public GET honors the stored value for **all** of `Cache-Control`, `CDN-Cache-Control`, and `Cloudflare-CDN-Cache-Control`. `If-None-Match` / `If-Modified-Since` return `304` when the object is unchanged (R2 conditional GET, no body download).
+PUT allowlists only those two strings. Public GET honors the stored value on `Cache-Control` (what browsers see) and on `CDN-Cache-Control` / `Cloudflare-CDN-Cache-Control` (what Cloudflare sees), except for the one case in [Live objects at the edge](#live-objects-at-the-edge) below. `If-None-Match` / `If-Modified-Since` return `304` when the object is unchanged (R2 conditional GET, no body download).
+
+Every public response carries two cache tags: `dxd-cdn:{client}` and a per-object
+`dxd-cdn-key:{percent-encoded key}`. A write purges only its own key's tag, so
+republishing one file does not evict a whole client's assets.
+
+### Live objects at the edge
+
+Workers Caching is on. Immutable snapshots get a real edge copy and request
+collapsing, which is safe because an immutable key is create-only and can never
+change underneath a cached response.
+
+Live keys are governed by `LIVE_EDGE_MAX_AGE` in `wrangler.toml`:
+
+| `LIVE_EDGE_MAX_AGE` | Browser sees | Cloudflare sees | Meaning |
+| --- | --- | --- | --- |
+| `0` (default) | `max-age=0, must-revalidate` | same | Every GET reaches the Worker. A republish is instantly visible. |
+| `3600` | `max-age=0, must-revalidate` | `public, max-age=3600` | Cloudflare answers the browser's revalidation instead of R2. A republish relies on purge. |
+
+Browsers always revalidate, at any setting. Raising the value trades a
+dependence on purge for far fewer Worker invocations and R2 reads.
+
+**Before raising it**, confirm purge actually works in production, because a
+failed purge hides a publish for up to that long:
+
+1. Deploy, then `PUT` a live key and read `purged` in the JSON response. The
+   Worker reports `purged: true` only when Cloudflare accepted the purge.
+   (`purged` is always `false` locally — the local runtime has no purge API — and
+   always `false` for immutable writes, which need none.)
+2. `GET` the public URL twice and watch `CF-Cache-Status` go `MISS` then `HIT`.
+3. Republish and `GET` again. You must see the new bytes on the first request.
+
+Purge draws on Cloudflare's free-tier purge rate limits regardless of plan, so a
+very high write rate can get a purge rejected; those rejections are logged with
+the key and surface as `purged: false`.
+
+To roll back, set `LIVE_EDGE_MAX_AGE = 0` and deploy — no code change. The Worker
+version is part of the cache key, so a deploy also starts from an empty cache.
 
 `@dxd/cdn` exports `MUTABLE_CACHE_CONTROL`, `IMMUTABLE_CACHE_CONTROL`, and `publishHashedAsset()` (Heard-style live + hashed snapshot). Client Workers on the same Cloudflare account can skip HTTP auth and bind `CdnObjects`; see [connect-a-worker.md](./connect-a-worker.md) for the full-access and scoped forms of that binding.
 

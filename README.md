@@ -51,10 +51,11 @@ src/
     pages.js            # Special pages (speed-test, convert)
     upload.js           # Upload page HTML templates
   utils/
-    cache.js            # Public GET Cache-Control / ETag / 304
+    cache.js            # Public GET Cache-Control / ETag / 304 / cache tags
     compression.js      # Gzip compression utilities
     cors.js             # CORS handling utilities
     files.js            # File operations, fuzzy search, analytics
+    purge.js            # Purge-on-write for Workers Caching
     r2.js               # Key fallback + conditional GET
 packages/
   client/               # @dxd/cdn TypeScript client
@@ -295,6 +296,7 @@ unless you override `ORIGIN`.
 | `GITHUB_TOKEN` | For GitHub proxy | GitHub Personal Access Token |
 | `ENVIRONMENT` | No | Set to "production" in prod |
 | `PUBLIC_ORIGIN` | No | Public origin in RPC/service-binding URLs (HTTP handlers use the request origin). Production: `https://cdn.designxdevelop.com` |
+| `LIVE_EDGE_MAX_AGE` | No | Seconds Cloudflare may cache a live object. `0` (default) means no edge copy |
 
 ## File Path Convention
 
@@ -311,10 +313,16 @@ Examples:
 ### Caching Strategy
 
 - GitHub releases cached 5 minutes in-memory
-- Hashed / versioned assets (and GitHub `/gh/:repo/:version/:file`): 1 year `immutable`
-- Live objects (`config.json`, `personalization.js`, web uploads): `public, max-age=0, must-revalidate` on browser **and** Cloudflare cache headers — no timed edge copy. Next navigation revalidates (`304` if unchanged)
+- Hashed / versioned assets (and GitHub `/gh/:repo/:version/:file`): 1 year `immutable`, with a real Cloudflare edge copy
+- Live objects (`config.json`, `personalization.js`, web uploads): `public, max-age=0, must-revalidate` for browsers. Cloudflare holds a copy for `LIVE_EDGE_MAX_AGE` seconds — `0` by default, meaning no edge copy and instantly visible republishes
+- Every live write purges its own `dxd-cdn-key:{key}` cache tag, so one publish evicts one object
+- Operator and tool pages (`/browse`, `/upload`, `/convert`, `/speed-test`) are `private, no-store`
 - PUT `/api/objects` allowlists only those two `Cache-Control` strings
 - API JSON responses use `no-store`
+
+Raising `LIVE_EDGE_MAX_AGE` makes live URLs edge-fast but depends on purge
+working; verify it first, then flip the value. The checklist is in
+[docs/api-objects.md](docs/api-objects.md#live-objects-at-the-edge).
 
 After deploying this Worker, **republish existing live keys**. Overwriting R2 updates new visitors. Browsers that already stored the URL as `immutable` will not recheck until they drop that entry — those clients need a new URL (hashed/versioned filename) or an explicit cache purge.
 

@@ -4,10 +4,14 @@ import {
 	applyPublicCacheHeaders,
 	cacheHeadersForObject,
 	cacheTagForKey,
+	cacheTagsForKey,
 	etagMatches,
 	getPreconditionStatus,
 	isImmutableCacheControl,
+	liveEdgeMaxAge,
 	notModifiedResponse,
+	objectCacheTag,
+	uncachedHtmlHeaders,
 } from './cache.js';
 
 describe('isImmutableCacheControl', () => {
@@ -50,6 +54,79 @@ describe('cacheHeadersForObject', () => {
 			'Cache-Control': stored,
 			'Cloudflare-CDN-Cache-Control': stored,
 			'CDN-Cache-Control': stored,
+		});
+	});
+
+	test('an edge TTL applies only to Cloudflare, never to the browser', () => {
+		expect(cacheHeadersForObject(MUTABLE_CACHE_CONTROL, 3600)).toEqual({
+			'Cache-Control': MUTABLE_CACHE_CONTROL,
+			'Cloudflare-CDN-Cache-Control': 'public, max-age=3600',
+			'CDN-Cache-Control': 'public, max-age=3600',
+		});
+	});
+
+	test('an edge TTL never shortens an immutable policy', () => {
+		expect(cacheHeadersForObject(IMMUTABLE_CACHE_CONTROL, 3600)).toEqual({
+			'Cache-Control': IMMUTABLE_CACHE_CONTROL,
+			'Cloudflare-CDN-Cache-Control': IMMUTABLE_CACHE_CONTROL,
+			'CDN-Cache-Control': IMMUTABLE_CACHE_CONTROL,
+		});
+	});
+});
+
+describe('liveEdgeMaxAge', () => {
+	test('defaults to no edge copy', () => {
+		expect(liveEdgeMaxAge({})).toBe(0);
+		expect(liveEdgeMaxAge(undefined)).toBe(0);
+		expect(liveEdgeMaxAge({ LIVE_EDGE_MAX_AGE: 0 })).toBe(0);
+	});
+
+	test('accepts a positive number or numeric string', () => {
+		expect(liveEdgeMaxAge({ LIVE_EDGE_MAX_AGE: 3600 })).toBe(3600);
+		expect(liveEdgeMaxAge({ LIVE_EDGE_MAX_AGE: '600' })).toBe(600);
+		expect(liveEdgeMaxAge({ LIVE_EDGE_MAX_AGE: 60.9 })).toBe(60);
+	});
+
+	test('treats nonsense as no edge copy rather than guessing', () => {
+		expect(liveEdgeMaxAge({ LIVE_EDGE_MAX_AGE: 'soon' })).toBe(0);
+		expect(liveEdgeMaxAge({ LIVE_EDGE_MAX_AGE: -5 })).toBe(0);
+		expect(liveEdgeMaxAge({ LIVE_EDGE_MAX_AGE: null })).toBe(0);
+	});
+});
+
+describe('objectCacheTag', () => {
+	test('tags an individual key so one publish purges one object', () => {
+		expect(objectCacheTag('heard/hp/prod/personalization.js')).toBe('dxd-cdn-key:heard%2Fhp%2Fprod%2Fpersonalization.js');
+		expect(objectCacheTag('/heard/a.js')).toBe(objectCacheTag('heard/a.js'));
+	});
+
+	test('escapes characters a cache tag cannot carry', () => {
+		const tag = objectCacheTag('acme/my file,name.txt');
+		expect(tag).not.toMatch(/[\s,]/);
+		expect(tag).toBe('dxd-cdn-key:acme%2Fmy%20file%2Cname.txt');
+	});
+
+	test('gives up on a key too long to tag', () => {
+		expect(objectCacheTag(`acme/${'a'.repeat(1100)}.js`)).toBeNull();
+		expect(objectCacheTag('')).toBeNull();
+	});
+});
+
+describe('cacheTagsForKey', () => {
+	test('emits the client tag and the per-key tag', () => {
+		expect(cacheTagsForKey('heard/hp/prod/a.js')).toEqual(['dxd-cdn:heard', 'dxd-cdn-key:heard%2Fhp%2Fprod%2Fa.js']);
+	});
+
+	test('falls back to the client tag alone when the key cannot be tagged', () => {
+		expect(cacheTagsForKey(`acme/${'a'.repeat(1100)}.js`)).toEqual(['dxd-cdn:acme']);
+	});
+});
+
+describe('uncachedHtmlHeaders', () => {
+	test('keeps operator HTML out of any cache', () => {
+		expect(uncachedHtmlHeaders()).toEqual({
+			'Content-Type': 'text/html',
+			'Cache-Control': 'private, no-store',
 		});
 	});
 });
@@ -130,7 +207,7 @@ describe('applyPublicCacheHeaders', () => {
 			'heard/hp/prod/personalization.js',
 		);
 		expect(headers.get('ETag')).toBe('"etag"');
-		expect(headers.get('Cache-Tag')).toBe('dxd-cdn:heard');
+		expect(headers.get('Cache-Tag')).toBe('dxd-cdn:heard,dxd-cdn-key:heard%2Fhp%2Fprod%2Fpersonalization.js');
 		expect(headers.get('Cache-Control')).toBe(MUTABLE_CACHE_CONTROL);
 		expect(headers.get('Cloudflare-CDN-Cache-Control')).toBe(MUTABLE_CACHE_CONTROL);
 		expect(headers.get('Last-Modified')).toBe('Thu, 01 Jan 2026 00:00:00 GMT');

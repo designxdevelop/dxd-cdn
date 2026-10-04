@@ -133,6 +133,15 @@ if [[ -n "$APP_TOKEN" ]]; then
 fi
 
 echo
+echo "== Cache tags and admin pages =="
+check 'public GET carries the client and per-key cache tags' "dxd-cdn:$PREFIX,dxd-cdn-key:$PREFIX%2Fapp%2Fprod%2Fconfig.js" \
+	"$(header cache-tag "$ORIGIN/$PREFIX/app/prod/config.js")"
+check '/browse is no-store' 'private, no-store' "$(header cache-control "$ORIGIN/browse")"
+check '/upload is no-store' 'private, no-store' "$(header cache-control "$ORIGIN/upload")"
+check '/convert is no-store' 'private, no-store' "$(header cache-control "$ORIGIN/convert")"
+check '/speed-test is no-store' 'private, no-store' "$(header cache-control "$ORIGIN/speed-test")"
+
+echo
 echo "== Browse / upload =="
 check 'GET /browse without the password' 200 "$(status "$ORIGIN/browse")"
 check 'GET /api/files with the password' 200 "$(status "$ORIGIN/api/files?password=$UPLOAD_PASSWORD")"

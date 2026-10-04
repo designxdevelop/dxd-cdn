@@ -4,7 +4,7 @@
  */
 
 import { CONTENT_TYPES } from '../config/constants.js';
-import { applyPublicCacheHeaders, preconditionResponse } from '../utils/cache.js';
+import { applyPublicCacheHeaders, liveEdgeMaxAge, preconditionResponse } from '../utils/cache.js';
 import { trackFileRequest } from '../utils/files.js';
 
 /**
@@ -33,7 +33,7 @@ export async function handleMp4Stream(request, object, env, path) {
 		'Accept-Ranges': 'bytes',
 		'Access-Control-Allow-Origin': '*',
 	});
-	applyPublicCacheHeaders(headers, object, path);
+	applyPublicCacheHeaders(headers, object, path, liveEdgeMaxAge(env));
 
 	const precond = preconditionResponse(request, object, headers);
 	if (precond) return precond;
@@ -50,6 +50,7 @@ export async function handleMp4Stream(request, object, env, path) {
 					headers: {
 						'Accept-Ranges': 'bytes',
 						'Content-Range': `bytes */${size}`,
+						'Cache-Control': 'no-store',
 					},
 				});
 			}
@@ -70,6 +71,7 @@ export async function handleMp4Stream(request, object, env, path) {
 					headers: {
 						'Content-Range': `bytes */${size}`,
 						'Accept-Ranges': 'bytes',
+						'Cache-Control': 'no-store',
 					},
 				});
 			}
@@ -83,6 +85,7 @@ export async function handleMp4Stream(request, object, env, path) {
 					headers: {
 						'Accept-Ranges': 'bytes',
 						'Content-Range': `bytes */${size}`,
+						'Cache-Control': 'no-store',
 					},
 				});
 			}
@@ -103,7 +106,7 @@ export async function handleMp4Stream(request, object, env, path) {
 			console.error('Range request error:', error);
 			const full = await fullMp4Object(object, env, path);
 			if (!full) {
-				return new Response('File not found', { status: 404 });
+				return new Response('File not found', { status: 404, headers: { 'Cache-Control': 'no-store' } });
 			}
 			headers.set('Content-Length', object.size.toString());
 
@@ -119,7 +122,7 @@ export async function handleMp4Stream(request, object, env, path) {
 
 	const full = await fullMp4Object(object, env, path);
 	if (!full) {
-		return new Response('File not found', { status: 404 });
+		return new Response('File not found', { status: 404, headers: { 'Cache-Control': 'no-store' } });
 	}
 
 	headers.set('Content-Length', object.size.toString());

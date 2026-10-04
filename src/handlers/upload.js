@@ -4,6 +4,7 @@
 
 import { MUTABLE_CACHE_CONTROL } from '../config/constants.js';
 import { UPLOAD_FORM_HTML, getSuccessHTML, getUploadErrorHTML } from '../templates/upload.js';
+import { uncachedHtmlHeaders } from '../utils/cache.js';
 import { getUniqueFilename } from '../utils/files.js';
 
 /**
@@ -12,7 +13,7 @@ import { getUniqueFilename } from '../utils/files.js';
  */
 export function handleUploadGet() {
 	return new Response(UPLOAD_FORM_HTML, {
-		headers: { 'Content-Type': 'text/html' },
+		headers: uncachedHtmlHeaders(),
 	});
 }
 
@@ -35,7 +36,7 @@ export async function handleUploadPost(request, env, url) {
 		if (!env.UPLOAD_PASSWORD || password !== env.UPLOAD_PASSWORD) {
 			return new Response(getUploadErrorHTML('Invalid password. Please try again.'), {
 				status: 401,
-				headers: { 'Content-Type': 'text/html' },
+				headers: uncachedHtmlHeaders(),
 			});
 		}
 
@@ -43,7 +44,7 @@ export async function handleUploadPost(request, env, url) {
 		if (!file || file.size === 0) {
 			return new Response(getUploadErrorHTML('Please select a file to upload.'), {
 				status: 400,
-				headers: { 'Content-Type': 'text/html' },
+				headers: uncachedHtmlHeaders(),
 			});
 		}
 
@@ -73,13 +74,13 @@ export async function handleUploadPost(request, env, url) {
 
 		// Return success page
 		return new Response(getSuccessHTML(file.name, cdnUrl), {
-			headers: { 'Content-Type': 'text/html' },
+			headers: uncachedHtmlHeaders(),
 		});
 	} catch (error) {
 		console.error('Upload error:', error);
 		return new Response(getUploadErrorHTML('There was an error uploading your file. Please try again.'), {
 			status: 500,
-			headers: { 'Content-Type': 'text/html' },
+			headers: uncachedHtmlHeaders(),
 		});
 	}
 }
