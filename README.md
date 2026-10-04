@@ -205,16 +205,16 @@ Visit `https://your-domain.com/convert` for a web interface to:
 
 ## API Endpoints
 
-Auth: `Authorization: Bearer <UPLOAD_PASSWORD>` or `?password=` (same secret as `/upload`). JSON APIs send `Cache-Control: no-store`.
+Every route uses the same secret as `/upload` (`UPLOAD_PASSWORD`). `/api/objects` accepts `Authorization: Bearer <UPLOAD_PASSWORD>` or `?password=`; the other endpoints accept `?password=` only. JSON APIs send `Cache-Control: no-store`.
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/objects` | PUT | Store an object (`X-DXD-Object-Key`, optional `X-DXD-Cache-Control` / `X-DXD-Overwrite`) |
-| `/api/objects` | GET | Authenticated meta or body (`?key=` and `as=meta` or `as=body`) |
-| `/api/files` | GET | List files with optional search/filter |
-| `/api/file-stats` | GET | Get analytics for a specific file |
-| `/api/file-content` | GET | Get HTML file content |
-| `/api/delete-file` | DELETE | Delete a file |
+| Endpoint | Method | Auth | Description |
+|----------|--------|------|-------------|
+| `/api/objects` | PUT | Bearer or `?password=` | Store an object (`X-DXD-Object-Key`, optional `X-DXD-Cache-Control` / `X-DXD-Overwrite`) |
+| `/api/objects` | GET | Bearer or `?password=` | Authenticated meta or body (`?key=` and `as=meta` or `as=body`) |
+| `/api/files` | GET | `?password=` | List files with optional search/filter |
+| `/api/file-stats` | GET | `?password=` | Get analytics for a specific file |
+| `/api/file-content` | GET | `?password=` | Get HTML file content |
+| `/api/delete-file` | DELETE | `?password=` | Delete a file |
 
 ### Query Parameters
 
