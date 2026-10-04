@@ -127,6 +127,18 @@ export default {
 
 ```js
 const meta = await env.DXD_CDN.getObjectMeta('heard/hp/prod/config.json');
+const removed = await env.DXD_CDN.deleteObject('heard/hp/prod/old.json');
+```
+
+Listing is one R2 page at a time; keep going while `truncated` is `true`:
+
+```js
+let cursor;
+do {
+	const page = await env.DXD_CDN.listObjects({ prefix: 'heard/hp/prod/', cursor });
+	for (const object of page.objects) console.log(object.key, object.cacheControl);
+	cursor = page.cursor;
+} while (cursor);
 ```
 
 ### Scoped binding (prefix-limited)
@@ -150,7 +162,10 @@ export default {
 ```
 
 `scope()` throws `Unknown app token` if the token is not in `APP_TOKENS`, and the
-handle it returns reports its own limits via `cdn.scope`.
+handle it returns reports its own limits via `cdn.scope`. It carries the same
+four methods — `putObject`, `getObjectMeta`, `deleteObject`, `listObjects` — each
+limited to that token's prefixes and ops. `listObjects()` with no `prefix` means
+"my prefix" for a single-prefix token.
 
 Public browsers still `GET https://cdn.designxdevelop.com/{key}` — they never call the RPC.
 

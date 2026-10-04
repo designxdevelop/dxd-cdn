@@ -147,3 +147,76 @@ describe('publishHashedAsset', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('deleteObject', () => {
+  it('resolves true on success and false when the key is already gone', async () => {
+    const requests: Array<{ url: string; method: string }> = [];
+    const fetchImpl = vi.fn(async (url: string | URL, init?: RequestInit) => {
+      const href = String(url);
+      requests.push({ url: href, method: init?.method || 'GET' });
+      if (href.includes('absent')) {
+        return new Response(JSON.stringify({ error: 'Not found' }), { status: 404 });
+      }
+      return new Response(JSON.stringify({ ok: true, key: 'heard/a.js', purged: true }), {
+        status: 200,
+      });
+    });
+
+    const cdn = new DxdCdnClient({
+      origin: 'https://cdn.designxdevelop.com',
+      uploadPassword: 'secret',
+      fetch: fetchImpl as unknown as typeof fetch,
+    });
+
+    expect(await cdn.deleteObject('heard/a.js')).toBe(true);
+    expect(await cdn.deleteObject('heard/absent.js')).toBe(false);
+    expect(requests.map((request) => request.method)).toEqual(['DELETE', 'DELETE']);
+    expect(requests[0].url).toBe(
+      'https://cdn.designxdevelop.com/api/objects?key=heard%2Fa.js',
+    );
+  });
+
+  it('throws on a scope rejection rather than reporting nothing to delete', async () => {
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ error: 'Key is outside this token scope' }), {
+          status: 403,
+        }),
+    );
+
+    const cdn = new DxdCdnClient({
+      origin: 'https://cdn.designxdevelop.com',
+      uploadPassword: 'app-token',
+      fetch: fetchImpl as unknown as typeof fetch,
+    });
+
+    await expect(cdn.deleteObject('acme/a.js')).rejects.toThrow(/outside this token scope/);
+  });
+});
+
+describe('listAllObjects', () => {
+  it('follows the cursor until the listing is complete', async () => {
+    const pages = [
+      { prefix: 'heard/', objects: [{ key: 'heard/a.js' }], prefixes: [], truncated: true, cursor: 'c1' },
+      { prefix: 'heard/', objects: [{ key: 'heard/b.js' }], prefixes: [], truncated: true, cursor: 'c2' },
+      { prefix: 'heard/', objects: [{ key: 'heard/c.js' }], prefixes: [], truncated: false, cursor: null },
+    ];
+    const cursors: Array<string | null> = [];
+    const fetchImpl = vi.fn(async (url: string | URL) => {
+      const parsed = new URL(String(url));
+      cursors.push(parsed.searchParams.get('cursor'));
+      return new Response(JSON.stringify(pages.shift()), { status: 200 });
+    });
+
+    const cdn = new DxdCdnClient({
+      origin: 'https://cdn.designxdevelop.com',
+      uploadPassword: 'secret',
+      fetch: fetchImpl as unknown as typeof fetch,
+    });
+
+    const objects = await cdn.listAllObjects({ prefix: 'heard/' });
+
+    expect(objects.map((object) => object.key)).toEqual(['heard/a.js', 'heard/b.js', 'heard/c.js']);
+    expect(cursors).toEqual([null, 'c1', 'c2']);
+  });
+});

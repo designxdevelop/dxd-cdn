@@ -24,6 +24,10 @@ function validatePassword(url, env) {
 
 /**
  * Handle GET /api/files - List files with search/filter
+ *
+ * Operator view of the whole bucket (or one `prefix`). Walks R2's cursor up to a
+ * page cap and reports `truncated` when it stops, so a listing is never quietly
+ * short. Apps should use the paginated `GET /api/objects/list` instead.
  * @param {URL} url - Parsed URL
  * @param {Object} env - Environment bindings
  * @returns {Promise<Response>} Files list JSON
@@ -37,12 +41,14 @@ export async function handleFilesApi(url, env) {
 		const client = url.searchParams.get('client') || 'all';
 		const project = url.searchParams.get('project') || 'all';
 		const envFilter = url.searchParams.get('env') || 'all';
+		const prefix = url.searchParams.get('prefix') || '';
 
 		const result = await getFilesList(env.CDN_BUCKET, {
 			search,
 			client,
 			project,
 			env: envFilter,
+			prefix,
 		});
 
 		return new Response(JSON.stringify(result), {

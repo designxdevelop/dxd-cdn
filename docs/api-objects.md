@@ -35,7 +35,7 @@ token**, so the plaintext only ever lives in the app that uses it:
 | --- | --- |
 | `app` | Name logged on every write by that token |
 | `prefixes` | Key prefixes the token may touch. `"*"` means the whole bucket. A prefix matches at path-segment boundaries, so `heard` grants `heard/a.js` but not `heard-staging/a.js`. An exact key is a valid single-object prefix. |
-| `ops` | Any of `put`, `get`, `list`, `delete` |
+| `ops` | Any of `put`, `get`, `list`, `delete`. Grant the narrowest set that works: `["put", "get"]` covers a publish pipeline, and `delete` is worth withholding from CI. |
 
 Mint one:
 
@@ -146,11 +146,59 @@ Objects already stored as `immutable` (old PUT default, rclone) stay sticky in R
 
 ## GET `/api/objects?key=…&as=meta|body`
 
-Authenticated inspect/pull. Browsers and embeds should use the public URL instead:
+Authenticated inspect/pull. Needs the `get` op. Browsers and embeds should use the public URL instead:
 
 ```
 GET https://cdn.designxdevelop.com/{key}
 ```
+
+## HEAD `/api/objects?key=…`
+
+Existence and freshness with no body — `curl -I` friendly, and cheaper than
+`as=meta` when a script only needs a status code. Needs the `get` op. Metadata
+comes back in headers, since a HEAD response cannot carry JSON:
+
+| Header | Value |
+| --- | --- |
+| `ETag`, `Last-Modified` | Same as the public GET |
+| `X-DXD-Object-Key` | Normalized key |
+| `X-DXD-Object-Size` | Bytes |
+| `X-DXD-Content-Type`, `X-DXD-Cache-Control` | Stored metadata |
+
+## DELETE `/api/objects?key=…`
+
+Needs the `delete` op, which app tokens do not get unless you grant it. `200` with
+`{ ok, key, purged }`, or `404` if there was nothing there. Purges the key's
+cached response.
+
+## GET `/api/objects/list?prefix=&cursor=&limit=&delimiter=`
+
+Scoped, paginated listing. Needs the `list` op.
+
+| Parameter | Meaning |
+| --- | --- |
+| `prefix` | Must be inside the token's scope. Optional for an operator token (whole bucket) or a token with exactly one prefix (that prefix). A multi-prefix token must say which one. |
+| `cursor` | Continue from a previous page's `cursor` |
+| `limit` | 1–1000, default 1000 (R2's page size) |
+| `delimiter` | `/` to get folder prefixes in `prefixes` instead of every key |
+
+```jsonc
+{
+  "prefix": "heard/",
+  "objects": [
+    { "key": "heard/hp/prod/personalization.js", "size": 2041, "uploaded": "2026-10-04T22:31:48.606Z",
+      "etag": "\"…\"", "contentType": "application/javascript; charset=utf-8",
+      "cacheControl": "public, max-age=0, must-revalidate" }
+  ],
+  "prefixes": [],
+  "truncated": true,
+  "cursor": "…"
+}
+```
+
+Keep requesting with `cursor` while `truncated` is `true`. This is the endpoint
+apps should use; `/api/files` is the operator view of the whole bucket and needs
+the operator token.
 
 ## TypeScript client
 

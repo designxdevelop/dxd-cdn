@@ -10,7 +10,13 @@
 import { CONTENT_TYPES, IMMUTABLE_CACHE_CONTROL, MUTABLE_CACHE_CONTROL, PREVIEW_TYPES } from './config/constants.js';
 import { handleFilesApi, handleFileStatsApi, handleFileContentApi, handleDeleteFileApi } from './handlers/api.js';
 import { handleBrowseGet, handleBrowsePost } from './handlers/browse.js';
-import { handlePutObjectApi, handleGetObjectApi } from './handlers/objects-api.js';
+import {
+	handleDeleteObjectApi,
+	handleGetObjectApi,
+	handleHeadObjectApi,
+	handleListObjectsApi,
+	handlePutObjectApi,
+} from './handlers/objects-api.js';
 import { handleR2Response, handleGitHubResponse } from './handlers/responses.js';
 import { handleMp4Stream } from './handlers/streaming.js';
 import { handleUploadGet, handleUploadPost } from './handlers/upload.js';
@@ -82,12 +88,27 @@ export default {
 				return handleDeleteFileApi(url, env);
 			}
 
-			if (url.pathname === '/api/objects' && request.method === 'PUT') {
-				return handlePutObjectApi(request, env, url);
+			if (url.pathname === '/api/objects') {
+				if (request.method === 'PUT') {
+					return handlePutObjectApi(request, env, url);
+				}
+				if (request.method === 'GET') {
+					return handleGetObjectApi(request, env, url);
+				}
+				if (request.method === 'HEAD') {
+					return handleHeadObjectApi(request, env, url);
+				}
+				if (request.method === 'DELETE') {
+					return handleDeleteObjectApi(request, env, url);
+				}
+				return new Response('Method Not Allowed', {
+					status: 405,
+					headers: { Allow: 'GET, HEAD, PUT, DELETE', 'Cache-Control': 'no-store' },
+				});
 			}
 
-			if (url.pathname === '/api/objects' && request.method === 'GET') {
-				return handleGetObjectApi(request, env, url);
+			if (url.pathname === '/api/objects/list' && request.method === 'GET') {
+				return handleListObjectsApi(request, env, url);
 			}
 
 			// ========== EXISTING ROUTES ==========

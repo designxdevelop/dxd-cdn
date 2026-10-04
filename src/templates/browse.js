@@ -651,7 +651,7 @@ export function getBrowseHTML(origin, password) {
                     return;
                 }
 
-                statsEl.textContent = 'Found ' + files.length + ' file' + (files.length === 1 ? '' : 's') + (searchInput.value ? ' matching "' + searchInput.value + '"' : '');
+                statsEl.textContent = 'Found ' + files.length + ' file' + (files.length === 1 ? '' : 's') + (searchInput.value ? ' matching "' + searchInput.value + '"' : '') + (data.truncated ? ' — listing capped at ' + data.scanned + ' keys, filters may be incomplete' : '');
 
                 fileList.innerHTML = files.map(filepath => {
                     const url = '${origin}/' + filepath;

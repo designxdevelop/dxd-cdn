@@ -129,8 +129,34 @@ if [[ -n "$APP_TOKEN" ]]; then
 		"$(status -X DELETE "$ORIGIN/api/delete-file?password=$APP_TOKEN&file=$APP_TOKEN_PREFIX/$PREFIX/in-scope.js")"
 	check 'an unknown token is 401, not 403' 401 "$(put_as 'definitely-not-a-token' "$APP_TOKEN_PREFIX/$PREFIX/nope.js" 'x')"
 	check 'public GET of an app-written object needs no token' 200 "$(status "$ORIGIN/$APP_TOKEN_PREFIX/$PREFIX/in-scope.js")"
+	check 'app token cannot list outside its prefix' 403 \
+		"$(status -H "Authorization: Bearer $APP_TOKEN" "$ORIGIN/api/objects/list?prefix=other-app/")"
+	check 'app token cannot delete without the delete op' 403 \
+		"$(status -X DELETE -H "Authorization: Bearer $APP_TOKEN" "$ORIGIN/api/objects?key=$APP_TOKEN_PREFIX/$PREFIX/in-scope.js")"
 	curl -sS -o /dev/null -X DELETE "$ORIGIN/api/delete-file?password=$UPLOAD_PASSWORD&file=$APP_TOKEN_PREFIX/$PREFIX/in-scope.js"
 fi
+
+echo
+echo "== Objects API: HEAD, DELETE, scoped list =="
+check 'HEAD an existing key' 200 \
+	"$(status -I -H "Authorization: Bearer $UPLOAD_PASSWORD" "$ORIGIN/api/objects?key=$PREFIX/app/prod/config.js")"
+check 'HEAD reports the stored Cache-Control' 'public, max-age=0, must-revalidate' \
+	"$(header x-dxd-cache-control -I -H "Authorization: Bearer $UPLOAD_PASSWORD" "$ORIGIN/api/objects?key=$PREFIX/app/prod/config.js")"
+check 'HEAD a missing key' 404 \
+	"$(status -I -H "Authorization: Bearer $UPLOAD_PASSWORD" "$ORIGIN/api/objects?key=$PREFIX/app/prod/absent.js")"
+check 'HEAD without auth' 401 "$(status -I "$ORIGIN/api/objects?key=$PREFIX/app/prod/config.js")"
+check 'PATCH /api/objects is 405' 405 "$(status -X PATCH -H "Authorization: Bearer $UPLOAD_PASSWORD" "$ORIGIN/api/objects")"
+
+check 'list one page with a cursor' 200 "$(status -H "Authorization: Bearer $UPLOAD_PASSWORD" "$ORIGIN/api/objects/list?prefix=$PREFIX/&limit=1")"
+check 'list reports more pages remain' 'true' \
+	"$(curl -sS -H "Authorization: Bearer $UPLOAD_PASSWORD" "$ORIGIN/api/objects/list?prefix=$PREFIX/&limit=1" | tr ',' '\n' | grep -o '"truncated":[a-z]*' | cut -d: -f2)"
+check 'list without auth' 401 "$(status "$ORIGIN/api/objects/list?prefix=$PREFIX/")"
+
+check 'PUT a key to delete' 201 "$(put "$PREFIX/app/prod/doomed.js" 'bye')"
+check 'DELETE it' 200 "$(status -X DELETE -H "Authorization: Bearer $UPLOAD_PASSWORD" "$ORIGIN/api/objects?key=$PREFIX/app/prod/doomed.js")"
+check 'it is gone from the public path' 404 "$(status "$ORIGIN/$PREFIX/app/prod/doomed.js")"
+check 'DELETE again is 404' 404 \
+	"$(status -X DELETE -H "Authorization: Bearer $UPLOAD_PASSWORD" "$ORIGIN/api/objects?key=$PREFIX/app/prod/doomed.js")"
 
 echo
 echo "== Cache tags and admin pages =="

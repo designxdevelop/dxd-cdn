@@ -28,7 +28,7 @@ export function isWebflowDomain(origin) {
 export function getCorsHeaders(origin = null) {
 	const headers = {
 		'Access-Control-Allow-Origin': '*',
-		'Access-Control-Allow-Methods': 'GET, PUT, POST, DELETE, OPTIONS',
+		'Access-Control-Allow-Methods': 'GET, HEAD, PUT, POST, DELETE, OPTIONS',
 		'Access-Control-Allow-Headers':
 			'Content-Type, Authorization, X-DXD-Object-Key, X-DXD-Cache-Control, X-DXD-Overwrite, X-DXD-Json-Envelope',
 	};
