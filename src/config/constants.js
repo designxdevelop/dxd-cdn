@@ -60,6 +60,19 @@ export const COMPRESSIBLE_TYPES = new Set([
 	'yml',
 ]);
 
+/**
+ * Prefixes the platform owns. Tenants cannot write them through the Objects API
+ * and the public path will not serve them, so platform bookkeeping can never
+ * collide with — or be forged by — an app's keys.
+ */
+export const RESERVED_KEY_PREFIXES = ['api/', '_cdn/', 'analytics/'];
+
+/** Where request counters live. Under a reserved prefix, so it is not tenant-writable. */
+export const ANALYTICS_KEY_PREFIX = '_cdn/analytics/';
+
+/** Pre-`_cdn/` analytics location, still read so existing counters are not lost. */
+export const LEGACY_ANALYTICS_KEY_PREFIX = 'analytics/';
+
 export const DEFAULT_GITHUB_OWNER = 'austin-thesing';
 export const GITHUB_CACHE_TTL = 300000; // 5 minutes in milliseconds
 

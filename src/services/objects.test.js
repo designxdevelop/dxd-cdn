@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { IMMUTABLE_CACHE_CONTROL, MUTABLE_CACHE_CONTROL } from '../config/constants.js';
-import { loadObjectMeta, normalizeObjectKey, objectErrorStatus, resolveCacheControl, storeObject } from '../services/objects.js';
+import {
+	isReservedKey,
+	loadObjectMeta,
+	normalizeObjectKey,
+	objectErrorStatus,
+	resolveCacheControl,
+	storeObject,
+} from '../services/objects.js';
 import { OPERATOR_SCOPE } from '../services/scopes.js';
 
 describe('normalizeObjectKey', () => {
@@ -11,6 +18,27 @@ describe('normalizeObjectKey', () => {
 		expect(normalizeObjectKey('a/./b.js')).toBeNull();
 		expect(normalizeObjectKey('a?b.json')).toBeNull();
 		expect(normalizeObjectKey('a#b.json')).toBeNull();
+	});
+
+	it('rejects the platform key space so counters cannot be forged', () => {
+		expect(normalizeObjectKey('_cdn/analytics/acme/a.js.json')).toBeNull();
+		expect(normalizeObjectKey('/_cdn/anything')).toBeNull();
+		expect(normalizeObjectKey('analytics/acme/a.js.json')).toBeNull();
+	});
+
+	it('does not reject keys that merely start with the same letters', () => {
+		expect(normalizeObjectKey('analytics-dashboard/prod/a.js')).toBe('analytics-dashboard/prod/a.js');
+		expect(normalizeObjectKey('apiary/prod/a.js')).toBe('apiary/prod/a.js');
+	});
+});
+
+describe('isReservedKey', () => {
+	it('matches the platform prefixes and nothing else', () => {
+		expect(isReservedKey('_cdn/analytics/a.json')).toBe(true);
+		expect(isReservedKey('/analytics/a.json')).toBe(true);
+		expect(isReservedKey('api/objects')).toBe(true);
+		expect(isReservedKey('heard/hp/prod/a.js')).toBe(false);
+		expect(isReservedKey('')).toBe(false);
 	});
 });
 

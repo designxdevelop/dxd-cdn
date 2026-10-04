@@ -3,6 +3,8 @@
  * Handles file operations, fuzzy search, analytics tracking, and file listing
  */
 
+import { ANALYTICS_KEY_PREFIX, LEGACY_ANALYTICS_KEY_PREFIX, RESERVED_KEY_PREFIXES } from '../config/constants.js';
+
 /**
  * Generate unique filename by adding -1, -2, etc. if file exists
  * @param {R2Bucket} bucket - R2 bucket instance
@@ -16,8 +18,8 @@ export async function getUniqueFilename(bucket, originalName) {
 	let filename = originalName;
 	let counter = 1;
 
-	// Check if file exists, if so, increment counter
-	while (await bucket.get(filename)) {
+	// `head` rather than `get`: existence only, no body download.
+	while (await bucket.head(filename)) {
 		if (extension) {
 			filename = `${baseName}-${counter}.${extension}`;
 		} else {
@@ -131,16 +133,32 @@ export function parseFilePath(filepath) {
 }
 
 /**
- * Track file request (non-blocking, fire and forget)
+ * Counter object for one served key.
+ * @param {string} filepath
+ * @returns {string}
+ */
+export function analyticsKeyFor(filepath) {
+	return `${ANALYTICS_KEY_PREFIX}${filepath}.json`;
+}
+
+/**
+ * Record one request against a key.
+ *
+ * Callers must hand the returned promise to `ctx.waitUntil`. Without that the
+ * write is cancelled the moment the response finishes, which is why counters
+ * used to stay at zero no matter how many times a file was served.
+ *
+ * Counts are approximate by design: this is a read-modify-write on an R2 object,
+ * so simultaneous requests can lose an increment, and a Workers Caching hit does
+ * not run the Worker at all.
  * @param {R2Bucket} bucket - R2 bucket instance
  * @param {string} filepath - File path being accessed
+ * @returns {Promise<void>}
  */
 export async function trackFileRequest(bucket, filepath) {
 	try {
-		const analyticsKey = `analytics/${filepath}.json`;
-
-		// Try to get existing analytics data
-		let existingData = await bucket.get(analyticsKey);
+		const analyticsKey = analyticsKeyFor(filepath);
+		const existingData = await readAnalyticsObject(bucket, filepath);
 		let stats = { requestCount: 0, firstServed: null, lastServed: null };
 
 		if (existingData) {
@@ -151,7 +169,6 @@ export async function trackFileRequest(bucket, filepath) {
 			}
 		}
 
-		// Update stats
 		const now = new Date().toISOString();
 		stats.requestCount = (stats.requestCount || 0) + 1;
 		stats.lastServed = now;
@@ -159,19 +176,26 @@ export async function trackFileRequest(bucket, filepath) {
 			stats.firstServed = now;
 		}
 
-		// Save updated stats (non-blocking - don't await)
-		bucket
-			.put(analyticsKey, JSON.stringify(stats), {
-				httpMetadata: { contentType: 'application/json' },
-			})
-			.catch((err) => {
-				// Silently fail - analytics should not break file serving
-				console.error('Failed to save analytics:', err);
-			});
+		await bucket.put(analyticsKey, JSON.stringify(stats), {
+			httpMetadata: { contentType: 'application/json' },
+		});
 	} catch (error) {
 		// Silently fail - analytics should not break file serving
 		console.error('Error tracking file request:', error);
 	}
+}
+
+/**
+ * Reads the reserved location, falling back to the pre-`_cdn/` one so counters
+ * recorded before the move still show up.
+ * @param {R2Bucket} bucket
+ * @param {string} filepath
+ * @returns {Promise<R2ObjectBody|null>}
+ */
+async function readAnalyticsObject(bucket, filepath) {
+	const current = await bucket.get(analyticsKeyFor(filepath));
+	if (current) return current;
+	return bucket.get(`${LEGACY_ANALYTICS_KEY_PREFIX}${filepath}.json`);
 }
 
 /**
@@ -182,8 +206,7 @@ export async function trackFileRequest(bucket, filepath) {
  */
 export async function getFileStats(bucket, filepath) {
 	try {
-		const analyticsKey = `analytics/${filepath}.json`;
-		const analyticsData = await bucket.get(analyticsKey);
+		const analyticsData = await readAnalyticsObject(bucket, filepath);
 
 		if (!analyticsData) {
 			return { requestCount: 0, firstServed: null, lastServed: null };
@@ -194,6 +217,15 @@ export async function getFileStats(bucket, filepath) {
 		console.error('Error getting file stats:', error);
 		return { requestCount: 0, firstServed: null, lastServed: null };
 	}
+}
+
+/**
+ * Both analytics locations for a key, so a delete removes either.
+ * @param {string} filepath
+ * @returns {string[]}
+ */
+export function analyticsKeysFor(filepath) {
+	return [analyticsKeyFor(filepath), `${LEGACY_ANALYTICS_KEY_PREFIX}${filepath}.json`];
 }
 
 /** R2 returns at most 1000 keys per `list` call. */
@@ -252,8 +284,8 @@ export async function getFilesList(bucket, options = {}) {
 	try {
 		const listed = await listAllKeys(bucket, prefix);
 		let files = listed.keys
-			// Exclude analytics files from listing
-			.filter((filename) => !filename.startsWith('analytics/'));
+			// Platform bookkeeping is not a file anybody uploaded
+			.filter((filename) => !RESERVED_KEY_PREFIXES.some((reserved) => filename.startsWith(reserved)));
 
 		// Extract unique clients, projects, and environments from file paths
 		const clientsSet = new Set();

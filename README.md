@@ -130,6 +130,10 @@ Visit `https://your-domain.com/upload` to:
 - Specify upload path (client/project/env structure recommended)
 - Auto-generates unique filenames if conflicts exist
 
+Upload paths go through the same key rules as the Objects API, so traversal
+(`../../escaped`) and the reserved prefixes below are rejected rather than stored
+as literal keys.
+
 ### File Browser
 
 Visit `https://your-domain.com/browse` to:
@@ -323,6 +327,17 @@ Examples:
 - `acme/website/prod/logo.svg`
 - `acme/website/staging/hero-video.mp4`
 - `bigcorp/landing-page/prod/styles.css`
+
+### Reserved prefixes
+
+`api/`, `_cdn/`, and `analytics/` belong to the platform: writes are rejected and
+the public path returns `404`. Request counters live at
+`_cdn/analytics/{key}.json`, which no token can write. Matching is per path
+segment, so `analytics-dashboard/prod/a.js` is an ordinary key.
+
+Counters are approximate. They are a read-modify-write on an R2 object, so
+simultaneous requests can lose an increment, and a Workers Caching hit does not
+run the Worker at all. Each counted request costs one extra R2 read and write.
 
 ### Caching Strategy
 

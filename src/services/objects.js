@@ -5,7 +5,13 @@
  * adapters, so the HTTP API and the RPC entrypoint enforce the same rules.
  */
 
-import { CONTENT_TYPES, DEFAULT_CDN_ORIGIN, IMMUTABLE_CACHE_CONTROL, MUTABLE_CACHE_CONTROL } from '../config/constants.js';
+import {
+	CONTENT_TYPES,
+	DEFAULT_CDN_ORIGIN,
+	IMMUTABLE_CACHE_CONTROL,
+	MUTABLE_CACHE_CONTROL,
+	RESERVED_KEY_PREFIXES,
+} from '../config/constants.js';
 import { purgeObjectKey } from '../utils/purge.js';
 import { ALL_PREFIXES, scopeAllows } from './scopes.js';
 
@@ -16,10 +22,20 @@ import { ALL_PREFIXES, scopeAllows } from './scopes.js';
 export function normalizeObjectKey(path) {
 	if (!path || typeof path !== 'string') return null;
 	const cleaned = path.replace(/^\/+/, '').replace(/\\/g, '/');
-	if (!cleaned || cleaned.includes('?') || cleaned.includes('#') || cleaned.startsWith('api/')) return null;
+	if (!cleaned || cleaned.includes('?') || cleaned.includes('#')) return null;
+	if (isReservedKey(cleaned)) return null;
 	const segments = cleaned.split('/');
 	if (segments.some((segment) => !segment || segment === '.' || segment === '..')) return null;
 	return cleaned;
+}
+
+/**
+ * @param {string} key
+ * @returns {boolean}
+ */
+export function isReservedKey(key) {
+	const cleaned = String(key || '').replace(/^\/+/, '');
+	return RESERVED_KEY_PREFIXES.some((prefix) => cleaned.startsWith(prefix));
 }
 
 /**
