@@ -11,7 +11,7 @@ Cloudflare Worker CDN for uploads, browsing, GitHub proxying, and direct R2 serv
 ## Worker constraints
 
 - Use ESM imports with explicit `.js` extensions.
-- Bindings are `CDN_BUCKET`, `UPLOAD_PASSWORD`, `GITHUB_TOKEN`, and `ENVIRONMENT`.
+- Bindings are `CDN_BUCKET`, `UPLOAD_PASSWORD`, `GITHUB_TOKEN`, `ENVIRONMENT`, and `PUBLIC_ORIGIN`.
 - Keep Objects API semantics in `docs/api-objects.md`: public GET honors per-object cache control; live objects must revalidate rather than use a timed edge copy. Client Workers bind `CdnObjects`; see `docs/connect-a-worker.md`.
 
 ## Local verification
