@@ -3,7 +3,7 @@
  */
 
 import { jsonApiHeaders } from '../utils/cors.js';
-import { getFilesList, getFileStats } from '../utils/files.js';
+import { analyticsKeysFor, getFilesList, getFileStats } from '../utils/files.js';
 
 /**
  * Validate API password
@@ -181,7 +181,7 @@ export async function handleDeleteFileApi(url, env) {
 
 		// Also try to delete analytics for this file (don't fail if it doesn't exist)
 		try {
-			await env.CDN_BUCKET.delete(`analytics/${filename}.json`);
+			await env.CDN_BUCKET.delete(analyticsKeysFor(filename));
 		} catch {
 			// Ignore errors deleting analytics
 		}

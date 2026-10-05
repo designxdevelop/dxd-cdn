@@ -81,6 +81,18 @@ Any segment is fine, including version-shaped ones (`myapp/v1.2.3/bundle.js`,
 `myapp/a1b2c3d/bundle.js`). The GitHub proxy lives under its own `/gh/` prefix
 and no longer claims those keys.
 
+### Reserved prefixes
+
+`api/`, `_cdn/`, and `analytics/` belong to the platform. Writes to them are
+`400 Invalid or missing key`, and the public path answers `404`, so platform
+bookkeeping can neither collide with an app's keys nor be forged or read by one.
+Prefixes match whole segments, so `analytics-dashboard/prod/a.js` is an ordinary
+key.
+
+Request counters live at `_cdn/analytics/{key}.json`. Counters written before the
+move, at `analytics/{key}.json`, are still read and are carried forward on the
+next request.
+
 ## PUT `/api/objects`
 
 Overwrite by default (needed so “publish again” updates the same live URL).
@@ -139,6 +151,11 @@ the key and surface as `purged: false`.
 
 To roll back, set `LIVE_EDGE_MAX_AGE = 0` and deploy — no code change. The Worker
 version is part of the cache key, so a deploy also starts from an empty cache.
+
+`publishHashedAsset()` is idempotent: redeploying unchanged content finds the
+snapshot already there, confirms it is byte-identical, and refreshes only the
+live pointer (`reusedExistingSnapshot: true`). A snapshot that exists with
+*different* content is an error, not something to overwrite.
 
 `@dxd/cdn` exports `MUTABLE_CACHE_CONTROL`, `IMMUTABLE_CACHE_CONTROL`, and `publishHashedAsset()` (Heard-style live + hashed snapshot). Client Workers on the same Cloudflare account can skip HTTP auth and bind `CdnObjects`; see [connect-a-worker.md](./connect-a-worker.md) for the full-access and scoped forms of that binding.
 

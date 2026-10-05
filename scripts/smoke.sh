@@ -159,6 +159,28 @@ check 'DELETE again is 404' 404 \
 	"$(status -X DELETE -H "Authorization: Bearer $UPLOAD_PASSWORD" "$ORIGIN/api/objects?key=$PREFIX/app/prod/doomed.js")"
 
 echo
+echo "== Reserved platform key space =="
+check 'PUT into _cdn/ is rejected' 400 "$(put '_cdn/analytics/forged.json' '{"requestCount":999999}')"
+check 'PUT into analytics/ is rejected' 400 "$(put 'analytics/forged.json' '{"requestCount":999999}')"
+check 'public GET of _cdn/ is 404' 404 "$(status "$ORIGIN/_cdn/analytics/anything.json")"
+check 'public GET of analytics/ is 404' 404 "$(status "$ORIGIN/analytics/anything.json")"
+check 'a key that merely starts the same way is fine' 201 "$(put "analytics-dashboard/$PREFIX/a.js" 'x')"
+curl -sS -o /dev/null -X DELETE "$ORIGIN/api/delete-file?password=$UPLOAD_PASSWORD&file=analytics-dashboard/$PREFIX/a.js"
+
+echo
+echo "== Request analytics actually record =="
+for _ in 1 2 3; do curl -sS -o /dev/null "$ORIGIN/$PREFIX/app/prod/config.js"; sleep 0.2; done
+sleep 1
+COUNTED="$(curl -sS "$ORIGIN/api/file-stats?password=$UPLOAD_PASSWORD&file=$PREFIX/app/prod/config.js" | grep -o '"requestCount":[0-9]*' | cut -d: -f2)"
+if [[ "${COUNTED:-0}" -ge 1 ]]; then
+	printf 'ok   %-58s %s\n' 'public GETs are counted (was always 0)' "requestCount=$COUNTED"
+	PASS=$((PASS + 1))
+else
+	printf 'FAIL %-58s %s\n' 'public GETs are counted (was always 0)' "requestCount=${COUNTED:-none}"
+	FAIL=$((FAIL + 1))
+fi
+
+echo
 echo "== Cache tags and admin pages =="
 check 'public GET carries the client and per-key cache tags' "dxd-cdn:$PREFIX,dxd-cdn-key:$PREFIX%2Fapp%2Fprod%2Fconfig.js" \
 	"$(header cache-tag "$ORIGIN/$PREFIX/app/prod/config.js")"

@@ -141,6 +141,131 @@ describe('public object serving', () => {
 	});
 });
 
+describe('request analytics', () => {
+	// The counter write runs in ctx.waitUntil, so it lands shortly after the
+	// response rather than before it. Exact arithmetic is covered in
+	// utils/files.test.js; here the question is only whether it lands at all.
+	async function settledCount(key) {
+		for (let attempt = 0; attempt < 50; attempt++) {
+			const stats = await env.CDN_BUCKET.get(`_cdn/analytics/${key}.json`);
+			if (stats) return JSON.parse(await stats.text());
+			await scheduler.wait(10);
+		}
+		return null;
+	}
+
+	test('a public GET is recorded, where before the write was cancelled and the count stayed zero', async () => {
+		await put('acme/site/prod/counted.js', 'x');
+		await SELF.fetch('https://cdn.designxdevelop.com/acme/site/prod/counted.js');
+
+		const stats = await settledCount('acme/site/prod/counted.js');
+		expect(stats).not.toBeNull();
+		expect(stats.requestCount).toBeGreaterThanOrEqual(1);
+		expect(stats.firstServed).toBeTruthy();
+		expect(stats.lastServed).toBeTruthy();
+	});
+
+	test('/api/file-stats reports what was counted', async () => {
+		await put('acme/site/prod/counted.js', 'x');
+		await SELF.fetch('https://cdn.designxdevelop.com/acme/site/prod/counted.js');
+		await settledCount('acme/site/prod/counted.js');
+
+		const response = await SELF.fetch(
+			`https://cdn.designxdevelop.com/api/file-stats?password=${env.UPLOAD_PASSWORD}&file=acme/site/prod/counted.js`,
+		);
+		expect((await response.json()).requestCount).toBeGreaterThanOrEqual(1);
+	});
+
+	test('counters recorded at the old analytics location are carried forward', async () => {
+		await put('acme/site/prod/legacy.js', 'x');
+		await env.CDN_BUCKET.put(
+			'analytics/acme/site/prod/legacy.js.json',
+			JSON.stringify({ requestCount: 41, firstServed: '2026-01-01T00:00:00.000Z', lastServed: '2026-01-01T00:00:00.000Z' }),
+		);
+
+		await SELF.fetch('https://cdn.designxdevelop.com/acme/site/prod/legacy.js');
+
+		const stats = await settledCount('acme/site/prod/legacy.js');
+		expect(stats.requestCount).toBe(42);
+		expect(stats.firstServed).toBe('2026-01-01T00:00:00.000Z');
+	});
+
+	test('a 304 revalidation is not counted as a fresh serve', async () => {
+		await put('acme/site/prod/counted.js', 'x');
+		const first = await SELF.fetch('https://cdn.designxdevelop.com/acme/site/prod/counted.js');
+		await settledCount('acme/site/prod/counted.js');
+
+		const revalidated = await SELF.fetch('https://cdn.designxdevelop.com/acme/site/prod/counted.js', {
+			headers: { 'If-None-Match': first.headers.get('ETag') },
+		});
+		expect(revalidated.status).toBe(304);
+
+		expect((await settledCount('acme/site/prod/counted.js')).requestCount).toBe(1);
+	});
+});
+
+describe('the platform key space is not tenant territory', () => {
+	test('the public path will not serve a reserved key', async () => {
+		await env.CDN_BUCKET.put('_cdn/analytics/acme/a.js.json', '{"requestCount":999999}');
+		await env.CDN_BUCKET.put('analytics/acme/a.js.json', '{"requestCount":999999}');
+
+		expect((await SELF.fetch('https://cdn.designxdevelop.com/_cdn/analytics/acme/a.js.json')).status).toBe(404);
+		expect((await SELF.fetch('https://cdn.designxdevelop.com/analytics/acme/a.js.json')).status).toBe(404);
+	});
+
+	test('a reserved key cannot be written through the Objects API', async () => {
+		for (const key of ['_cdn/analytics/acme/a.js.json', 'analytics/acme/a.js.json', 'api/objects']) {
+			const response = await SELF.fetch('https://cdn.designxdevelop.com/api/objects', {
+				method: 'PUT',
+				headers: { Authorization: `Bearer ${env.UPLOAD_PASSWORD}`, 'X-DXD-Object-Key': key },
+				body: '{"requestCount":999999}',
+			});
+			expect(response.status, key).toBe(400);
+			expect(await env.CDN_BUCKET.head(key), key).toBeNull();
+		}
+	});
+
+	test('reserved keys are hidden from the operator listing', async () => {
+		await put('acme/site/prod/a.js', 'x');
+		await env.CDN_BUCKET.put('_cdn/analytics/acme/site/prod/a.js.json', '{}');
+
+		const response = await SELF.fetch(`https://cdn.designxdevelop.com/api/files?password=${env.UPLOAD_PASSWORD}`);
+		const body = await response.json();
+		expect(body.files).toEqual(['acme/site/prod/a.js']);
+	});
+});
+
+describe('POST /upload key handling', () => {
+	async function upload(path, filename, body = 'hello') {
+		const form = new FormData();
+		form.set('password', env.UPLOAD_PASSWORD);
+		form.set('path', path);
+		form.set('file', new File([body], filename, { type: 'text/plain' }));
+		return SELF.fetch('https://cdn.designxdevelop.com/upload', { method: 'POST', body: form });
+	}
+
+	test('a normal path stores the object where it says', async () => {
+		const response = await upload('acme/site/prod', 'notes.txt');
+		expect(response.status).toBe(200);
+		expect(await env.CDN_BUCKET.head('acme/site/prod/notes.txt')).not.toBeNull();
+	});
+
+	test('traversal in the path is rejected instead of becoming a literal key', async () => {
+		const response = await upload('../../escaped', 'u.txt');
+
+		expect(response.status).toBe(400);
+		expect(await response.text()).toContain('not a valid path');
+
+		const listed = await env.CDN_BUCKET.list();
+		expect(listed.objects.map((object) => object.key)).toEqual([]);
+	});
+
+	test('uploading into the reserved key space is rejected', async () => {
+		expect((await upload('_cdn/analytics/acme', 'forged.json')).status).toBe(400);
+		expect((await upload('analytics/acme', 'forged.json')).status).toBe(400);
+	});
+});
+
 describe('operator and tool pages are never cached', () => {
 	test.each([
 		['/browse', 'GET'],

@@ -23,6 +23,7 @@ import { handleUploadGet, handleUploadPost } from './handlers/upload.js';
 import { PUBLIC_READ_METHODS, isGitHubProxyPath, legacyGitHubProxyPathname, parseGitHubProxyPath } from './routing.js';
 import { CdnObjects } from './services/cdn-objects.js';
 import { getLatestRelease } from './services/github.js';
+import { isReservedKey } from './services/objects.js';
 import { handleSpecialPages } from './templates/pages.js';
 import { applyPublicCacheHeaders, cacheHeadersForObject, liveEdgeMaxAge, notModifiedResponse } from './utils/cache.js';
 import { handleCorsPreflightRequest, getCorsHeaders, jsonApiHeaders } from './utils/cors.js';
@@ -246,12 +247,16 @@ async function handleDirectR2Request(request, env, ctx, url, path) {
 	const forceDownload = url.searchParams.get('download') === 'true';
 	const extensionHint = path.split('.').pop().toLowerCase();
 
+	if (isReservedKey(path)) {
+		return new Response('File not found', { status: 404, headers: { 'Cache-Control': 'no-store' } });
+	}
+
 	if (extensionHint === 'mp4') {
 		const found = await headR2Object(env.CDN_BUCKET, request, path);
 		if (!found.object) {
 			return objectNotFound(url, path);
 		}
-		return handleMp4Stream(request, found.object, env, found.key);
+		return handleMp4Stream(request, found.object, env, ctx, found.key);
 	}
 
 	const found = await getR2Object(env.CDN_BUCKET, request, path);
@@ -282,9 +287,8 @@ async function handleDirectR2Request(request, env, ctx, url, path) {
 	const notModified = notModifiedResponse(request, object.httpEtag, headers);
 	if (notModified) return notModified;
 
-	trackFileRequest(env.CDN_BUCKET, key).catch((err) => {
-		console.error('Error tracking file request:', err);
-	});
+	// waitUntil, or the counter write is cancelled when the response finishes.
+	ctx.waitUntil(trackFileRequest(env.CDN_BUCKET, key));
 
 	return new Response(object.body, { headers });
 }

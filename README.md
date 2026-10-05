@@ -130,6 +130,10 @@ Visit `https://your-domain.com/upload` to:
 - Specify upload path (client/project/env structure recommended)
 - Auto-generates unique filenames if conflicts exist
 
+Upload paths go through the same key rules as the Objects API, so traversal
+(`../../escaped`) and the reserved prefixes below are rejected rather than stored
+as literal keys.
+
 ### File Browser
 
 Visit `https://your-domain.com/browse` to:
@@ -249,16 +253,19 @@ Visit `https://your-domain.com/convert` for a web interface to:
 
 ## API Endpoints
 
-Every route uses the same secret as `/upload` (`UPLOAD_PASSWORD`). `/api/objects` accepts `Authorization: Bearer <UPLOAD_PASSWORD>` or `?password=`; the other endpoints accept `?password=` only. JSON APIs send `Cache-Control: no-store`.
+The `/api/objects` routes take a scoped app token or `UPLOAD_PASSWORD`, as either `Authorization: Bearer <token>` or `?password=`. Every other route is operator-only and accepts `?password=<UPLOAD_PASSWORD>` alone. JSON APIs send `Cache-Control: no-store`.
 
 | Endpoint | Method | Auth | Description |
 |----------|--------|------|-------------|
-| `/api/objects` | PUT | Bearer or `?password=` | Store an object (`X-DXD-Object-Key`, optional `X-DXD-Cache-Control` / `X-DXD-Overwrite`) |
-| `/api/objects` | GET | Bearer or `?password=` | Authenticated meta or body (`?key=` and `as=meta` or `as=body`) |
-| `/api/files` | GET | `?password=` | List files with optional search/filter |
-| `/api/file-stats` | GET | `?password=` | Get analytics for a specific file |
-| `/api/file-content` | GET | `?password=` | Get HTML file content |
-| `/api/delete-file` | DELETE | `?password=` | Delete a file |
+| `/api/objects` | PUT | App token or operator | Store an object (`X-DXD-Object-Key`, optional `X-DXD-Cache-Control` / `X-DXD-Overwrite`); needs `put` |
+| `/api/objects` | GET | App token or operator | Authenticated meta or body (`?key=` and `as=meta` or `as=body`); needs `get` |
+| `/api/objects` | HEAD | App token or operator | Metadata in headers (`?key=`); needs `get` |
+| `/api/objects` | DELETE | App token or operator | Delete an object (`?key=`); needs `delete` |
+| `/api/objects/list` | GET | App token or operator | Paginated listing (`?prefix=&cursor=&limit=&delimiter=`); needs `list` |
+| `/api/files` | GET | Operator | List files with optional search/filter |
+| `/api/file-stats` | GET | Operator | Get analytics for a specific file |
+| `/api/file-content` | GET | Operator | Get HTML file content |
+| `/api/delete-file` | DELETE | Operator | Delete a file |
 
 ### Query Parameters
 
@@ -323,6 +330,17 @@ Examples:
 - `acme/website/prod/logo.svg`
 - `acme/website/staging/hero-video.mp4`
 - `bigcorp/landing-page/prod/styles.css`
+
+### Reserved prefixes
+
+`api/`, `_cdn/`, and `analytics/` belong to the platform: writes are rejected and
+the public path returns `404`. Request counters live at
+`_cdn/analytics/{key}.json`, which no token can write. Matching is per path
+segment, so `analytics-dashboard/prod/a.js` is an ordinary key.
+
+Counters are approximate. They are a read-modify-write on an R2 object, so
+simultaneous requests can lose an increment, and a Workers Caching hit does not
+run the Worker at all. Each counted request costs one extra R2 read and write.
 
 ### Caching Strategy
 

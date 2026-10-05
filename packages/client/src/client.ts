@@ -107,6 +107,12 @@ export type PublishVersionedResult = {
   /** Stable public URL embeds should fetch (no query) */
   liveUrl: string;
   versionedUrl: string;
+  /**
+   * True when the snapshot was already present with identical content, so this
+   * publish only refreshed the live pointer. Re-running an unchanged deploy is
+   * expected to land here rather than fail.
+   */
+  reusedExistingSnapshot: boolean;
 };
 
 function assertOk(res: Response, body: unknown): void {
@@ -304,13 +310,41 @@ export class DxdCdnClient {
     const versionedKey = `${prefix}/${input.snapshotName}`;
     const liveKey = `${prefix}/${input.liveName}`;
 
-    const versioned = await this.putObject({
-      key: versionedKey,
-      body: input.body,
-      contentType: input.contentType,
-      cacheControl: input.immutableCacheControl,
-      overwrite: false,
-    });
+    let versioned: PutObjectResult;
+    let reusedExistingSnapshot = false;
+
+    try {
+      versioned = await this.putObject({
+        key: versionedKey,
+        body: input.body,
+        contentType: input.contentType,
+        cacheControl: input.immutableCacheControl,
+        overwrite: false,
+      });
+    } catch (error) {
+      // Snapshot writes are create-only, so redeploying unchanged content hits
+      // 409. That is the success case for an idempotent deploy, as long as what
+      // is already there really is what we were about to write.
+      if (!isObjectExistsError(error)) throw error;
+
+      const existing = await this.getObjectMeta(versionedKey);
+      const expectedSize = byteLength(input.body);
+      if (!existing || existing.size !== expectedSize) {
+        throw new Error(
+          `Snapshot ${versionedKey} already exists with different content ` +
+            `(${existing ? `${existing.size} bytes` : 'unreadable'}, expected ${expectedSize}). ` +
+            `Snapshot keys are immutable; publish under a new hash or version.`,
+        );
+      }
+
+      reusedExistingSnapshot = true;
+      versioned = {
+        ok: true,
+        key: existing.key,
+        url: existing.url,
+        cacheControl: existing.cacheControl ?? input.immutableCacheControl,
+      };
+    }
 
     const live = await this.putObject({
       key: liveKey,
@@ -325,6 +359,18 @@ export class DxdCdnClient {
       live,
       liveUrl: publicUrl(this.origin, liveKey),
       versionedUrl: publicUrl(this.origin, versionedKey),
+      reusedExistingSnapshot,
     };
   }
+}
+
+/** The Worker answers a create-only collision with 409 and this message. */
+function isObjectExistsError(error: unknown): boolean {
+  return error instanceof Error && /\bObject exists\b/.test(error.message);
+}
+
+function byteLength(body: string | Uint8Array | ArrayBuffer): number {
+  if (typeof body === 'string') return new TextEncoder().encode(body).length;
+  if (body instanceof Uint8Array) return body.byteLength;
+  return body.byteLength;
 }

@@ -24,10 +24,11 @@ async function fullMp4Object(object, env, path) {
  * @param {Request} request - Incoming request
  * @param {R2Object} object - R2 object
  * @param {Object} env - Environment bindings
+ * @param {ExecutionContext} ctx - Execution context, so the counter write survives the response
  * @param {string} path - File path
  * @returns {Promise<Response>} Streaming response
  */
-export async function handleMp4Stream(request, object, env, path) {
+export async function handleMp4Stream(request, object, env, ctx, path) {
 	const headers = new Headers({
 		'Content-Type': CONTENT_TYPES.mp4,
 		'Accept-Ranges': 'bytes',
@@ -93,10 +94,7 @@ export async function handleMp4Stream(request, object, env, path) {
 			headers.set('Content-Range', `bytes ${start}-${end}/${size}`);
 			headers.set('Content-Length', String(length));
 
-			// Track file request (non-blocking)
-			trackFileRequest(env.CDN_BUCKET, path).catch((err) => {
-				console.error('Error tracking file request:', err);
-			});
+			ctx.waitUntil(trackFileRequest(env.CDN_BUCKET, path));
 
 			return new Response(ranged.body, {
 				status: 206,
@@ -110,9 +108,7 @@ export async function handleMp4Stream(request, object, env, path) {
 			}
 			headers.set('Content-Length', object.size.toString());
 
-			trackFileRequest(env.CDN_BUCKET, path).catch((err) => {
-				console.error('Error tracking file request:', err);
-			});
+			ctx.waitUntil(trackFileRequest(env.CDN_BUCKET, path));
 
 			return new Response(full.body, {
 				headers,
@@ -127,9 +123,7 @@ export async function handleMp4Stream(request, object, env, path) {
 
 	headers.set('Content-Length', object.size.toString());
 
-	trackFileRequest(env.CDN_BUCKET, path).catch((err) => {
-		console.error('Error tracking file request:', err);
-	});
+	ctx.waitUntil(trackFileRequest(env.CDN_BUCKET, path));
 
 	return new Response(full.body, {
 		headers,
