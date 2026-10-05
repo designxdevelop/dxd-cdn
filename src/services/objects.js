@@ -7,7 +7,7 @@
 
 import { CONTENT_TYPES, DEFAULT_CDN_ORIGIN, IMMUTABLE_CACHE_CONTROL, MUTABLE_CACHE_CONTROL } from '../config/constants.js';
 import { purgeObjectKey } from '../utils/purge.js';
-import { scopeAllows } from './scopes.js';
+import { ALL_PREFIXES, scopeAllows } from './scopes.js';
 
 /**
  * @param {string} path
@@ -205,4 +205,87 @@ export async function loadObjectBody(env, scope, key) {
 	if (!object) return { ok: false, code: 'NOT_FOUND', key: normalized };
 
 	return { ok: true, key: normalized, object };
+}
+
+/**
+ * @param {Object} env
+ * @param {import('./scopes.js').Scope} scope
+ * @param {string} key
+ * @returns {Promise<{ ok: true, key: string, purged: boolean } | { ok: false, code: ObjectErrorCode, key?: string }>}
+ */
+export async function removeObject(env, scope, key) {
+	const normalized = normalizeObjectKey(key);
+	if (!normalized) return { ok: false, code: 'INVALID_KEY' };
+	if (!scopeAllows(scope, 'delete', normalized)) return { ok: false, code: 'FORBIDDEN', key: normalized };
+
+	const existing = await env.CDN_BUCKET.head(normalized);
+	if (!existing) return { ok: false, code: 'NOT_FOUND', key: normalized };
+
+	await env.CDN_BUCKET.delete(normalized);
+	const purge = await purgeObjectKey(normalized);
+
+	console.log('object deleted', { app: scope.app, key: normalized, purged: purge.purged, purgeReason: purge.reason });
+
+	return { ok: true, key: normalized, purged: purge.purged };
+}
+
+/** R2 returns at most this many keys per `list` call. */
+export const MAX_LIST_LIMIT = 1000;
+
+/**
+ * Resolve which prefix a list request covers. An omitted prefix means "the whole
+ * bucket" for an operator and "my prefix" for a token with exactly one, which is
+ * the common case; a multi-prefix token has to say which one it means.
+ * @param {import('./scopes.js').Scope} scope
+ * @param {string} requested
+ * @returns {string|null} null when the scope cannot imply a prefix.
+ */
+function resolveListPrefix(scope, requested) {
+	if (requested) return requested.replace(/^\/+/, '');
+	const prefixes = Array.isArray(scope?.prefixes) ? scope.prefixes : [];
+	if (prefixes.includes(ALL_PREFIXES)) return '';
+	if (prefixes.length === 1) return prefixes[0];
+	return null;
+}
+
+/**
+ * Paginated, prefix-scoped listing. Returns one R2 page plus its cursor rather
+ * than silently stopping at the first 1000 keys.
+ * @param {Object} env
+ * @param {import('./scopes.js').Scope} scope
+ * @param {{ prefix?: string, cursor?: string, limit?: number, delimiter?: string }} [options]
+ * @returns {Promise<{ ok: true, prefix: string, objects: Array<{ key: string, size: number, uploaded: string, etag: string, contentType: string|null, cacheControl: string|null }>, prefixes: string[], truncated: boolean, cursor: string|null } | { ok: false, code: ObjectErrorCode, key?: string }>}
+ */
+export async function listObjects(env, scope, options = {}) {
+	const prefix = resolveListPrefix(scope, String(options.prefix || ''));
+	if (prefix === null) return { ok: false, code: 'FORBIDDEN' };
+	if (!scopeAllows(scope, 'list', prefix || ALL_PREFIXES)) return { ok: false, code: 'FORBIDDEN', key: prefix };
+
+	const requestedLimit = Number(options.limit);
+	const limit =
+		Number.isFinite(requestedLimit) && requestedLimit > 0 ? Math.min(Math.floor(requestedLimit), MAX_LIST_LIMIT) : MAX_LIST_LIMIT;
+
+	const page = await env.CDN_BUCKET.list({
+		prefix: prefix || undefined,
+		cursor: options.cursor || undefined,
+		delimiter: options.delimiter || undefined,
+		limit,
+		include: ['httpMetadata'],
+	});
+
+	return {
+		ok: true,
+		prefix,
+		objects: page.objects.map((object) => ({
+			key: object.key,
+			size: object.size,
+			uploaded: object.uploaded instanceof Date ? object.uploaded.toISOString() : object.uploaded,
+			etag: object.httpEtag,
+			contentType: object.httpMetadata?.contentType || null,
+			cacheControl: object.httpMetadata?.cacheControl || null,
+		})),
+		prefixes: page.delimitedPrefixes || [],
+		truncated: Boolean(page.truncated),
+		cursor: page.truncated ? page.cursor : null,
+	};
 }

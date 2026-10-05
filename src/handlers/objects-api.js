@@ -14,7 +14,15 @@
  *   dxd-studio/countdown/prod/widgets/{id}/config.json
  */
 
-import { loadObjectBody, loadObjectMeta, objectErrorMessage, objectErrorStatus, storeObject } from '../services/objects.js';
+import {
+	listObjects,
+	loadObjectBody,
+	loadObjectMeta,
+	objectErrorMessage,
+	objectErrorStatus,
+	removeObject,
+	storeObject,
+} from '../services/objects.js';
 import { resolveScope } from '../services/scopes.js';
 import { getCorsHeaders } from '../utils/cors.js';
 
@@ -148,4 +156,71 @@ export async function handleGetObjectApi(request, env, url) {
 	return new Response(JSON.stringify(meta), {
 		headers: jsonHeaders(),
 	});
+}
+
+/**
+ * HEAD /api/objects?key=…
+ *
+ * Existence and freshness without a body, for CI and `curl -I`. The metadata
+ * travels in headers because a HEAD response cannot carry the JSON that
+ * `GET …&as=meta` returns.
+ */
+export async function handleHeadObjectApi(request, env, url) {
+	const scope = await resolveScope(request, url, env);
+	if (!scope) return new Response(null, { status: 401, headers: jsonHeaders() });
+
+	const result = await loadObjectMeta(env, scope, url.searchParams.get('key') || '', url.origin);
+	if (!result.ok) {
+		return new Response(null, { status: objectErrorStatus(result.code), headers: jsonHeaders() });
+	}
+
+	const headers = new Headers(jsonHeaders());
+	headers.set('ETag', result.etag);
+	headers.set('Last-Modified', new Date(result.uploaded).toUTCString());
+	headers.set('X-DXD-Object-Key', result.key);
+	headers.set('X-DXD-Object-Size', String(result.size));
+	if (result.contentType) headers.set('X-DXD-Content-Type', result.contentType);
+	if (result.cacheControl) headers.set('X-DXD-Cache-Control', result.cacheControl);
+
+	return new Response(null, { status: 200, headers });
+}
+
+/**
+ * DELETE /api/objects?key=…
+ *
+ * Needs the `delete` op in the token scope, which app tokens do not have by
+ * default. Purges the key's cached response on the way out.
+ */
+export async function handleDeleteObjectApi(request, env, url) {
+	const scope = await resolveScope(request, url, env);
+	if (!scope) return unauthorized();
+
+	const result = await removeObject(env, scope, url.searchParams.get('key') || '');
+	if (!result.ok) return objectFailResponse(result);
+
+	return new Response(JSON.stringify({ ok: true, key: result.key, purged: result.purged }), {
+		headers: jsonHeaders(),
+	});
+}
+
+/**
+ * GET /api/objects/list?prefix=&cursor=&limit=&delimiter=
+ *
+ * One R2 page at a time with the cursor to continue. `prefix` may be omitted by
+ * an operator token (whole bucket) or by a token with exactly one prefix.
+ */
+export async function handleListObjectsApi(request, env, url) {
+	const scope = await resolveScope(request, url, env);
+	if (!scope) return unauthorized();
+
+	const result = await listObjects(env, scope, {
+		prefix: url.searchParams.get('prefix') || '',
+		cursor: url.searchParams.get('cursor') || '',
+		limit: url.searchParams.get('limit'),
+		delimiter: url.searchParams.get('delimiter') || '',
+	});
+	if (!result.ok) return objectFailResponse(result);
+
+	const { ok: _ok, ...page } = result;
+	return new Response(JSON.stringify(page), { headers: jsonHeaders() });
 }

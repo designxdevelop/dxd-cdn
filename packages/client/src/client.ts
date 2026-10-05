@@ -37,6 +37,35 @@ export type GetObjectMetaResult = {
   url: string;
 };
 
+export type ListObjectsInput = {
+  /** Must be inside the token's scope. Omit to use the token's own prefix. */
+  prefix?: string;
+  /** Continue from a previous page's `cursor`. */
+  cursor?: string;
+  /** 1–1000. Defaults to R2's page size. */
+  limit?: number;
+  /** `/` to return folder prefixes instead of every key. */
+  delimiter?: string;
+};
+
+export type ListedObject = {
+  key: string;
+  size: number;
+  uploaded: string;
+  etag: string;
+  contentType: string | null;
+  cacheControl: string | null;
+};
+
+export type ListObjectsResult = {
+  prefix: string;
+  objects: ListedObject[];
+  /** Folder prefixes, when a `delimiter` was supplied. */
+  prefixes: string[];
+  truncated: boolean;
+  cursor: string | null;
+};
+
 export type DxdCdnClientOptions = {
   /** e.g. https://cdn.designxdevelop.com */
   origin: string;
@@ -143,6 +172,57 @@ export class DxdCdnClient {
     const json = (await res.json().catch(() => ({}))) as GetObjectMetaResult & { error?: string };
     assertOk(res, json);
     return json;
+  }
+
+  /** Needs the `delete` op. Resolves false when there was nothing to delete. */
+  async deleteObject(key: string): Promise<boolean> {
+    const url = new URL(`${this.origin}/api/objects`);
+    url.searchParams.set('key', key);
+
+    const res = await this.fetchImpl(url, {
+      method: 'DELETE',
+      headers: this.authHeaders(),
+    });
+
+    if (res.status === 404) return false;
+    const json = (await res.json().catch(() => ({}))) as { error?: string };
+    assertOk(res, json);
+    return true;
+  }
+
+  /**
+   * One page of a scoped listing. Needs the `list` op. Keep calling with
+   * `cursor` while `truncated` is true. Omit `prefix` to use the token's own.
+   */
+  async listObjects(input: ListObjectsInput = {}): Promise<ListObjectsResult> {
+    const url = new URL(`${this.origin}/api/objects/list`);
+    if (input.prefix) url.searchParams.set('prefix', input.prefix);
+    if (input.cursor) url.searchParams.set('cursor', input.cursor);
+    if (input.limit) url.searchParams.set('limit', String(input.limit));
+    if (input.delimiter) url.searchParams.set('delimiter', input.delimiter);
+
+    const res = await this.fetchImpl(url, {
+      method: 'GET',
+      headers: this.authHeaders(),
+    });
+
+    const json = (await res.json().catch(() => ({}))) as ListObjectsResult & { error?: string };
+    assertOk(res, json);
+    return json;
+  }
+
+  /** Every key under a prefix, following the cursor for you. */
+  async listAllObjects(input: Omit<ListObjectsInput, 'cursor'> = {}): Promise<ListedObject[]> {
+    const objects: ListedObject[] = [];
+    let cursor: string | undefined;
+
+    do {
+      const page = await this.listObjects({ ...input, cursor });
+      objects.push(...page.objects);
+      cursor = page.cursor ?? undefined;
+    } while (cursor);
+
+    return objects;
   }
 
   async getObjectBody(key: string): Promise<{ contentType: string; body: string } | null> {

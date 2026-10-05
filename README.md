@@ -161,7 +161,15 @@ Public GET honors the object's stored `Cache-Control`. Unchanged files return `3
 
 ### Objects API
 
-Programmatic publish/pull for Studio, Heard, client Workers, and CI. Prefer this over rclone so each object gets a `Cache-Control`.
+Programmatic publish/pull/manage for Studio, Heard, client Workers, and CI. Prefer this over rclone so each object gets a `Cache-Control`.
+
+| Method | Path | Op needed |
+|--------|------|-----------|
+| `PUT` | `/api/objects` | `put` |
+| `GET` | `/api/objects?key=&as=meta\|body` | `get` |
+| `HEAD` | `/api/objects?key=` | `get` |
+| `DELETE` | `/api/objects?key=` | `delete` |
+| `GET` | `/api/objects/list?prefix=&cursor=&limit=&delimiter=` | `list` |
 
 ```
 PUT /api/objects
@@ -269,6 +277,12 @@ Every route uses the same secret as `/upload` (`UPLOAD_PASSWORD`). `/api/objects
 **`/api/objects`**
 - `key` - Object key (or `X-DXD-Object-Key` on PUT)
 - `as` - `meta` (default) or `body` on GET
+
+**`/api/objects/list`**
+- `prefix` - Key prefix, which must be inside the token's scope
+- `cursor` - Continue from a previous page's `cursor`
+- `limit` - 1–1000 (default 1000)
+- `delimiter` - `/` to return folder prefixes instead of every key
 
 ## Development
 

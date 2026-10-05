@@ -196,6 +196,45 @@ export async function getFileStats(bucket, filepath) {
 	}
 }
 
+/** R2 returns at most 1000 keys per `list` call. */
+const R2_LIST_PAGE_SIZE = 1000;
+
+/** Pages the operator listing will walk before reporting itself truncated. */
+export const MAX_LIST_PAGES = 20;
+
+/**
+ * Every key under `prefix`, following R2's cursor instead of stopping at the
+ * first page. A single `list()` returns at most 1000 keys and reports
+ * `truncated` — ignoring that silently dropped files from the browse UI and
+ * from the client/project/env facets computed off the same page.
+ * @param {R2Bucket} bucket
+ * @param {string} [prefix]
+ * @param {number} [maxPages]
+ * @returns {Promise<{ keys: string[], truncated: boolean }>}
+ */
+export async function listAllKeys(bucket, prefix = '', maxPages = MAX_LIST_PAGES) {
+	const keys = [];
+	let cursor;
+
+	for (let page = 0; page < maxPages; page++) {
+		const result = await bucket.list({
+			prefix: prefix || undefined,
+			cursor,
+			limit: R2_LIST_PAGE_SIZE,
+		});
+		for (const object of result.objects) {
+			keys.push(object.key);
+		}
+		if (!result.truncated) {
+			return { keys, truncated: false };
+		}
+		cursor = result.cursor;
+	}
+
+	console.warn('Listing stopped at the page cap', { prefix, maxPages, keys: keys.length });
+	return { keys, truncated: true };
+}
+
 /**
  * Get list of files from R2 bucket with optional search, client, project, environment, and folder filters
  * @param {R2Bucket} bucket - R2 bucket instance
@@ -204,15 +243,15 @@ export async function getFileStats(bucket, filepath) {
  * @param {string} [options.client] - Client name filter
  * @param {string} [options.project] - Project name filter
  * @param {string} [options.env] - Environment filter (staging/prod/all)
- * @returns {Promise<Object>} Object containing files array and filter options
+ * @param {string} [options.prefix] - Key prefix to list under
+ * @returns {Promise<Object>} Object containing files array, filter options, and whether the scan hit its cap
  */
 export async function getFilesList(bucket, options = {}) {
-	const { search = '', client = 'all', project = 'all', env = 'all' } = options;
+	const { search = '', client = 'all', project = 'all', env = 'all', prefix = '' } = options;
 
 	try {
-		const objects = await bucket.list();
-		let files = objects.objects
-			.map((obj) => obj.key)
+		const listed = await listAllKeys(bucket, prefix);
+		let files = listed.keys
 			// Exclude analytics files from listing
 			.filter((filename) => !filename.startsWith('analytics/'));
 
@@ -272,9 +311,11 @@ export async function getFilesList(bucket, options = {}) {
 			clients: Array.from(clientsSet).sort(),
 			projects: Array.from(projectsSet).sort(),
 			envs: Array.from(envsSet).sort(),
+			scanned: listed.keys.length,
+			truncated: listed.truncated,
 		};
 	} catch (error) {
 		console.error('Error listing files:', error);
-		return { files: [], clients: [], projects: [], envs: [] };
+		return { files: [], clients: [], projects: [], envs: [], scanned: 0, truncated: false };
 	}
 }
