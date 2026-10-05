@@ -25,6 +25,10 @@ Query `?password=` also works (same secret as `/upload`).
 
 Stay under a dedicated `{client}` prefix so projects never collide.
 
+Any segment is fine, including version-shaped ones (`myapp/v1.2.3/bundle.js`,
+`myapp/a1b2c3d/bundle.js`). The GitHub proxy lives under its own `/gh/` prefix
+and no longer claims those keys.
+
 ## PUT `/api/objects`
 
 Overwrite by default (needed so “publish again” updates the same live URL).

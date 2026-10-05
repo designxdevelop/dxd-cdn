@@ -30,6 +30,7 @@ A hybrid CDN using Cloudflare Workers and R2 storage. Supports file upload/brows
 ```
 src/
   index.js              # Main entry point, request routing
+  routing.js            # Public path routing (/gh/ prefix vs R2 object key)
   config/
     constants.js        # Content types, preview types, GitHub config, cache policies
   handlers/
@@ -147,6 +148,9 @@ https://your-domain.com/acme/website/prod/hero-image.webp
 Query parameters:
 - `?download=true` - Force download instead of inline display
 
+Public object paths answer `GET` and `HEAD`; any other method is `405`. Writes go
+through the Objects API.
+
 Public GET honors the object's stored `Cache-Control`. Unchanged files return `304` on `If-None-Match` or `If-Modified-Since`.
 
 ### Objects API
@@ -174,7 +178,7 @@ Headers and Worker recipe: [docs/api-objects.md](docs/api-objects.md), [docs/con
 ### GitHub Proxy (Legacy)
 
 ```
-https://your-domain.com/[repo-name]/[version]/[file-path]
+https://your-domain.com/gh/[repo-name]/[version]/[file-path]
 ```
 
 Where `version` can be:
@@ -185,14 +189,19 @@ Where `version` can be:
 Examples:
 ```
 # Specific version
-https://your-domain.com/my-project/v1.0.0/dist/script.js
+https://your-domain.com/gh/my-project/v1.0.0/dist/script.js
 
 # Minified version (add .min before extension)
-https://your-domain.com/my-project/v1.0.0/dist/script.min.js
+https://your-domain.com/gh/my-project/v1.0.0/dist/script.min.js
 
 # Latest release
-https://your-domain.com/my-project/latest/dist/script.js
+https://your-domain.com/gh/my-project/latest/dist/script.js
 ```
+
+The proxy used to live at the unprefixed `/[repo]/[version]/[file-path]`, which
+collided with object keys such as `myapp/v1.2.3/bundle.js`. Those old URLs now
+`301` to the `/gh/` form **only when no object exists at that key**, so an
+uploaded object always wins and keeps its stored `Cache-Control`.
 
 ### URL Converter Tool
 
@@ -238,8 +247,18 @@ Every route uses the same secret as `/upload` (`UPLOAD_PASSWORD`). `/api/objects
 
 ```bash
 npm run dev    # Start local dev server
+npm test       # Client tests + Worker tests (Workers runtime, local R2)
 npm run deploy # Deploy to Cloudflare
 ```
+
+Worker tests run inside `workerd` via `@cloudflare/vitest-pool-workers`, so
+`src/index.test.js` exercises real routing against a local R2 bucket.
+
+With `npm run dev` running in another terminal, `./scripts/smoke.sh` walks the
+documented end-to-end path: authenticated PUT, authenticated meta GET, public
+GET, ETag revalidation, republish, and the `/gh/` redirect. It reads
+`UPLOAD_PASSWORD` from `.dev.vars` and only ever talks to `localhost:8787`
+unless you override `ORIGIN`.
 
 ## Environment Variables
 
@@ -265,7 +284,7 @@ Examples:
 ### Caching Strategy
 
 - GitHub releases cached 5 minutes in-memory
-- Hashed / versioned assets (and GitHub `/:repo/:version/:file`): 1 year `immutable`
+- Hashed / versioned assets (and GitHub `/gh/:repo/:version/:file`): 1 year `immutable`
 - Live objects (`config.json`, `personalization.js`, web uploads): `public, max-age=0, must-revalidate` on browser **and** Cloudflare cache headers — no timed edge copy. Next navigation revalidates (`304` if unchanged)
 - PUT `/api/objects` allowlists only those two `Cache-Control` strings
 - API JSON responses use `no-store`

@@ -133,7 +133,7 @@ CORS is `*`. Mutable files revalidate; hashed files are cached for a year.
 | Object | Browser | Cloudflare |
 | --- | --- | --- |
 | Live pointer (`personalization.js`, `config.json`, `/upload` files) | Revalidate every navigation (`max-age=0, must-revalidate`) | Same header; no timed edge copy |
-| Hashed / versioned (`*.abc123.js`, GitHub `/:repo/:version/:file`) | 1 year `immutable` | 1 year `immutable` |
+| Hashed / versioned (`*.abc123.js`, GitHub `/gh/:repo/:version/:file`) | 1 year `immutable` | 1 year `immutable` |
 
 Overwrite the live key and the next navigation sees the new bytes (or a `304` if nothing changed). Do not turn on Workers Cache for live URLs until there is purge-on-PUT — a 60s edge copy would hide publishes.
 
