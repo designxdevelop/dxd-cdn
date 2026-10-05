@@ -7,10 +7,15 @@
 #
 # Reads UPLOAD_PASSWORD from the environment or .dev.vars. Never touches production:
 # ORIGIN defaults to the local Wrangler server.
+#
+# Set APP_TOKEN (plus a matching APP_TOKENS entry in .dev.vars) to also exercise
+# the scoped-token checks; that section is skipped when APP_TOKEN is unset.
 
 set -uo pipefail
 
 ORIGIN="${ORIGIN:-http://localhost:8787}"
+APP_TOKEN="${APP_TOKEN:-}"
+APP_TOKEN_PREFIX="${APP_TOKEN_PREFIX:-heard}"
 
 if [[ -z "${UPLOAD_PASSWORD:-}" && -f .dev.vars ]]; then
 	UPLOAD_PASSWORD="$(grep -E '^UPLOAD_PASSWORD=' .dev.vars | head -1 | cut -d= -f2-)"
@@ -36,15 +41,21 @@ check() {
 	fi
 }
 
-put() {
-	local key="$1" body="$2"
-	shift 2
+put_as() {
+	local token="$1" key="$2" body="$3"
+	shift 3
 	curl -sS -o /dev/null -w '%{http_code}' -X PUT "$ORIGIN/api/objects" \
-		-H "Authorization: Bearer $UPLOAD_PASSWORD" \
+		-H "Authorization: Bearer $token" \
 		-H "X-DXD-Object-Key: $key" \
 		-H 'Content-Type: application/javascript' \
 		"$@" \
 		--data-binary "$body"
+}
+
+put() {
+	local key="$1" body="$2"
+	shift 2
+	put_as "$UPLOAD_PASSWORD" "$key" "$body" "$@"
 }
 
 status() { curl -sS -o /dev/null -w '%{http_code}' "$@"; }
@@ -102,6 +113,24 @@ check 'legacy shape with no object redirects' 301 "$(status "$ORIGIN/some-repo/v
 check 'legacy redirect target' "$ORIGIN/gh/some-repo/v9.9.9/dist/app.js" "$(header location "$ORIGIN/some-repo/v9.9.9/dist/app.js")"
 check 'a non-version-shaped miss stays 404' 404 "$(status "$ORIGIN/$PREFIX/app/prod/missing.js")"
 check '/gh/ without a file path is 400' 400 "$(status "$ORIGIN/gh/some-repo/v9.9.9")"
+
+if [[ -n "$APP_TOKEN" ]]; then
+	echo
+	echo "== Scoped app token (prefix $APP_TOKEN_PREFIX/) =="
+	check 'app token writes inside its prefix' 201 "$(put_as "$APP_TOKEN" "$APP_TOKEN_PREFIX/$PREFIX/in-scope.js" 'x')"
+	check 'app token cannot write outside its prefix' 403 "$(put_as "$APP_TOKEN" "other-app/$PREFIX/out-of-scope.js" 'x')"
+	check 'app token cannot use a sibling prefix' 403 "$(put_as "$APP_TOKEN" "$APP_TOKEN_PREFIX-staging/$PREFIX/a.js" 'x')"
+	check 'app token reads inside its prefix' 200 \
+		"$(status -H "Authorization: Bearer $APP_TOKEN" "$ORIGIN/api/objects?key=$APP_TOKEN_PREFIX/$PREFIX/in-scope.js&as=meta")"
+	check 'app token cannot read outside its prefix' 403 \
+		"$(status -H "Authorization: Bearer $APP_TOKEN" "$ORIGIN/api/objects?key=other-app/$PREFIX/out-of-scope.js&as=meta")"
+	check 'app token cannot list the whole bucket' 401 "$(status "$ORIGIN/api/files?password=$APP_TOKEN")"
+	check 'app token cannot delete through the operator route' 401 \
+		"$(status -X DELETE "$ORIGIN/api/delete-file?password=$APP_TOKEN&file=$APP_TOKEN_PREFIX/$PREFIX/in-scope.js")"
+	check 'an unknown token is 401, not 403' 401 "$(put_as 'definitely-not-a-token' "$APP_TOKEN_PREFIX/$PREFIX/nope.js" 'x')"
+	check 'public GET of an app-written object needs no token' 200 "$(status "$ORIGIN/$APP_TOKEN_PREFIX/$PREFIX/in-scope.js")"
+	curl -sS -o /dev/null -X DELETE "$ORIGIN/api/delete-file?password=$UPLOAD_PASSWORD&file=$APP_TOKEN_PREFIX/$PREFIX/in-scope.js"
+fi
 
 echo
 echo "== Browse / upload =="
