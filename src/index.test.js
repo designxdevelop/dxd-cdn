@@ -76,15 +76,48 @@ describe('public object serving', () => {
 		expect(second.status).toBe(304);
 	});
 
-	test('tags the response with the client prefix', async () => {
+	test('tags the response with the client prefix and the individual key', async () => {
 		await put('acme/site/prod/config.json', '{}');
 		const response = await SELF.fetch('https://cdn.designxdevelop.com/acme/site/prod/config.json');
-		expect(response.headers.get('Cache-Tag')).toContain('dxd-cdn:acme');
+		expect(response.headers.get('Cache-Tag')).toBe('dxd-cdn:acme,dxd-cdn-key:acme%2Fsite%2Fprod%2Fconfig.json');
 	});
 
-	test('a missing object is a 404', async () => {
+	test('live objects get no edge copy at the default LIVE_EDGE_MAX_AGE', async () => {
+		await put('acme/site/prod/config.json', '{}');
+		const response = await SELF.fetch('https://cdn.designxdevelop.com/acme/site/prod/config.json');
+		expect(response.headers.get('Cache-Control')).toBe(MUTABLE_CACHE_CONTROL);
+		expect(response.headers.get('CDN-Cache-Control')).toBe(MUTABLE_CACHE_CONTROL);
+	});
+
+	test('raising LIVE_EDGE_MAX_AGE gives Cloudflare a copy but never the browser', async () => {
+		await put('acme/site/prod/config.json', '{}');
+		env.LIVE_EDGE_MAX_AGE = 3600;
+		try {
+			const response = await SELF.fetch('https://cdn.designxdevelop.com/acme/site/prod/config.json');
+			expect(response.headers.get('Cache-Control')).toBe(MUTABLE_CACHE_CONTROL);
+			expect(response.headers.get('CDN-Cache-Control')).toBe('public, max-age=3600');
+			expect(response.headers.get('Cloudflare-CDN-Cache-Control')).toBe('public, max-age=3600');
+		} finally {
+			delete env.LIVE_EDGE_MAX_AGE;
+		}
+	});
+
+	test('an immutable snapshot is unaffected by LIVE_EDGE_MAX_AGE', async () => {
+		await put('acme/site/prod/app.abc123.js', 'snap', IMMUTABLE_CACHE_CONTROL);
+		env.LIVE_EDGE_MAX_AGE = 3600;
+		try {
+			const response = await SELF.fetch('https://cdn.designxdevelop.com/acme/site/prod/app.abc123.js');
+			expect(response.headers.get('Cache-Control')).toBe(IMMUTABLE_CACHE_CONTROL);
+			expect(response.headers.get('CDN-Cache-Control')).toBe(IMMUTABLE_CACHE_CONTROL);
+		} finally {
+			delete env.LIVE_EDGE_MAX_AGE;
+		}
+	});
+
+	test('a missing object is a 404 that cannot be cached over a later upload', async () => {
 		const response = await SELF.fetch('https://cdn.designxdevelop.com/acme/site/prod/nope.json');
 		expect(response.status).toBe(404);
+		expect(response.headers.get('Cache-Control')).toBe('no-store');
 	});
 
 	test('HEAD is allowed', async () => {
@@ -101,9 +134,30 @@ describe('public object serving', () => {
 			const response = await SELF.fetch('https://cdn.designxdevelop.com/acme/site/prod/config.json', { method });
 			expect(response.status, method).toBe(405);
 			expect(response.headers.get('Allow'), method).toBe('GET, HEAD');
+			expect(response.headers.get('Cache-Control'), method).toBe('no-store');
 		}
 
 		expect(await env.CDN_BUCKET.head('acme/site/prod/config.json')).not.toBeNull();
+	});
+});
+
+describe('operator and tool pages are never cached', () => {
+	test.each([
+		['/browse', 'GET'],
+		['/upload', 'GET'],
+		['/convert', 'GET'],
+		['/speed-test', 'GET'],
+	])('%s says no-store', async (path, method) => {
+		const response = await SELF.fetch(`https://cdn.designxdevelop.com${path}`, { method });
+		expect(response.status).toBe(200);
+		expect(response.headers.get('Cache-Control')).toBe('private, no-store');
+	});
+
+	test('the browse page with a valid password is still no-store', async () => {
+		const response = await SELF.fetch(`https://cdn.designxdevelop.com/browse?password=${env.UPLOAD_PASSWORD}`);
+		expect(response.status).toBe(200);
+		expect(response.headers.get('Cache-Control')).toBe('private, no-store');
+		expect(await response.text()).toContain(env.UPLOAD_PASSWORD);
 	});
 });
 

@@ -6,6 +6,7 @@
  */
 
 import { CONTENT_TYPES, DEFAULT_CDN_ORIGIN, IMMUTABLE_CACHE_CONTROL, MUTABLE_CACHE_CONTROL } from '../config/constants.js';
+import { purgeObjectKey } from '../utils/purge.js';
 import { scopeAllows } from './scopes.js';
 
 /**
@@ -109,7 +110,7 @@ function contentTypeForKey(key, explicit) {
  * @param {Object} env
  * @param {import('./scopes.js').Scope} scope
  * @param {{ key: string, body: BodyInit, contentType?: string, cacheControl?: string, overwrite?: boolean, origin?: string }} input
- * @returns {Promise<{ ok: true, key: string, url: string, cacheControl: string } | { ok: false, code: ObjectErrorCode, key?: string }>}
+ * @returns {Promise<{ ok: true, key: string, url: string, cacheControl: string, purged: boolean } | { ok: false, code: ObjectErrorCode, key?: string }>}
  */
 export async function storeObject(env, scope, input) {
 	const key = normalizeObjectKey(input.key);
@@ -146,13 +147,18 @@ export async function storeObject(env, scope, input) {
 		return { ok: false, code: 'EXISTS', key };
 	}
 
-	console.log('object stored', { app: scope.app, key, cacheControl });
+	// Immutable keys are create-only, so nothing cached under them can go stale.
+	// Live keys can be republished, so the edge copy has to go.
+	const purge = createOnly ? { purged: false, reason: 'immutable' } : await purgeObjectKey(key);
+
+	console.log('object stored', { app: scope.app, key, cacheControl, purged: purge.purged, purgeReason: purge.reason });
 
 	return {
 		ok: true,
 		key,
 		url: `${origin}/${key}`,
 		cacheControl,
+		purged: purge.purged,
 	};
 }
 

@@ -18,6 +18,13 @@ export type PutObjectResult = {
   key: string;
   url: string;
   cacheControl: string;
+  /**
+   * Whether the Worker dropped Cloudflare's cached copy of this key. Always
+   * `false` for immutable snapshots, which are create-only and cannot go stale.
+   * `false` on a live write means a publish may be served stale at the edge
+   * until `LIVE_EDGE_MAX_AGE` elapses — worth logging in CI.
+   */
+  purged?: boolean;
 };
 
 export type GetObjectMetaResult = {
@@ -33,7 +40,7 @@ export type GetObjectMetaResult = {
 export type DxdCdnClientOptions = {
   /** e.g. https://cdn.designxdevelop.com */
   origin: string;
-  /** Worker UPLOAD_PASSWORD */
+  /** A scoped app token from APP_TOKENS, or the operator UPLOAD_PASSWORD */
   uploadPassword: string;
   fetch?: typeof fetch;
 };

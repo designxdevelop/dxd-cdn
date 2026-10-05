@@ -18,7 +18,7 @@ import { PUBLIC_READ_METHODS, isGitHubProxyPath, legacyGitHubProxyPathname, pars
 import { CdnObjects } from './services/cdn-objects.js';
 import { getLatestRelease } from './services/github.js';
 import { handleSpecialPages } from './templates/pages.js';
-import { applyPublicCacheHeaders, cacheHeadersForObject, notModifiedResponse } from './utils/cache.js';
+import { applyPublicCacheHeaders, cacheHeadersForObject, liveEdgeMaxAge, notModifiedResponse } from './utils/cache.js';
 import { handleCorsPreflightRequest, getCorsHeaders, jsonApiHeaders } from './utils/cors.js';
 import { trackFileRequest } from './utils/files.js';
 import { failedOnlyIfStatus, getR2Object, hasR2Body, headR2Object } from './utils/r2.js';
@@ -120,7 +120,10 @@ export default {
 			if (isGitHubProxyPath(path)) {
 				const proxy = parseGitHubProxyPath(path);
 				if (!proxy) {
-					return new Response('Invalid path format. Use: /gh/repo/version/file-path', { status: 400 });
+					return new Response('Invalid path format. Use: /gh/repo/version/file-path', {
+						status: 400,
+						headers: { 'Cache-Control': 'no-store' },
+					});
 				}
 				return handleGitHubProxyRequest(request, env, ctx, proxy);
 			}
@@ -181,7 +184,7 @@ async function handleGitHubProxyRequest(request, env, ctx, proxy) {
 
 		const headers = new Headers(response.headers);
 		const cacheControl = version === 'latest' ? MUTABLE_CACHE_CONTROL : IMMUTABLE_CACHE_CONTROL;
-		for (const [name, value] of Object.entries(cacheHeadersForObject(cacheControl))) {
+		for (const [name, value] of Object.entries(cacheHeadersForObject(cacheControl, liveEdgeMaxAge(env)))) {
 			headers.set(name, value);
 		}
 		headers.set('Access-Control-Allow-Origin', '*');
@@ -210,7 +213,7 @@ async function handleGitHubProxyRequest(request, env, ctx, proxy) {
 			extension,
 			shouldMinify,
 		});
-		return new Response(`File not found: ${error.message}`, { status: 404 });
+		return new Response(`File not found: ${error.message}`, { status: 404, headers: { 'Cache-Control': 'no-store' } });
 	}
 }
 
@@ -243,7 +246,7 @@ async function handleDirectR2Request(request, env, ctx, url, path) {
 		'Content-Type': contentType,
 		'Access-Control-Allow-Origin': '*',
 	});
-	applyPublicCacheHeaders(headers, object, key);
+	applyPublicCacheHeaders(headers, object, key, liveEdgeMaxAge(env));
 
 	if (forceDownload) {
 		headers.set('Content-Disposition', `attachment; filename="${key.split('/').pop()}"`);
@@ -268,6 +271,9 @@ async function handleDirectR2Request(request, env, ctx, url, path) {
 /**
  * No object at this key. Pre-`/gh/` GitHub URLs are redirected rather than
  * proxied so an object at the same key always wins.
+ *
+ * Neither answer is cacheable: an object can be published at this key at any
+ * moment, and a cached miss would hide it.
  * @param {URL} url
  * @param {string} path
  * @returns {Response}
@@ -281,13 +287,12 @@ function objectNotFound(url, path) {
 			status: 301,
 			headers: {
 				Location: target.toString(),
-				// Not cached, so storing an object at this key takes effect immediately.
 				'Cache-Control': 'no-store',
 				...getCorsHeaders(),
 			},
 		});
 	}
-	return new Response('File not found', { status: 404 });
+	return new Response('File not found', { status: 404, headers: { 'Cache-Control': 'no-store' } });
 }
 
 /**
@@ -296,6 +301,6 @@ function objectNotFound(url, path) {
 function methodNotAllowed() {
 	return new Response('Method Not Allowed', {
 		status: 405,
-		headers: { Allow: PUBLIC_READ_METHODS.join(', ') },
+		headers: { Allow: PUBLIC_READ_METHODS.join(', '), 'Cache-Control': 'no-store' },
 	});
 }

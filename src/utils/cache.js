@@ -4,6 +4,9 @@
 
 import { MUTABLE_CACHE_CONTROL } from '../config/constants.js';
 
+/** Cloudflare caps a single cache tag at 1024 characters. */
+const MAX_CACHE_TAG_LENGTH = 1024;
+
 /**
  * @param {string|null|undefined} value
  * @returns {boolean}
@@ -21,6 +24,58 @@ export function cacheTagForKey(key) {
 		.replace(/^\/+/, '')
 		.split('/')[0];
 	return client ? `dxd-cdn:${client}` : 'dxd-cdn';
+}
+
+/**
+ * Per-object tag, so republishing one key purges one key instead of a whole
+ * client's assets. Cache tags must be printable ASCII with no commas, and
+ * object keys can contain neither reliably, so the key is percent-encoded.
+ * Purge and write both go through here, so the encoding always agrees.
+ * @param {string} key
+ * @returns {string|null} null when the key cannot produce a usable tag.
+ */
+export function objectCacheTag(key) {
+	const normalized = String(key || '').replace(/^\/+/, '');
+	if (!normalized) return null;
+	const tag = `dxd-cdn-key:${encodeURIComponent(normalized).replace(/,/g, '%2C')}`;
+	return tag.length <= MAX_CACHE_TAG_LENGTH ? tag : null;
+}
+
+/**
+ * @param {string} key
+ * @returns {string[]}
+ */
+export function cacheTagsForKey(key) {
+	const tags = [cacheTagForKey(key)];
+	const objectTag = objectCacheTag(key);
+	if (objectTag) tags.push(objectTag);
+	return tags;
+}
+
+/**
+ * Headers for the operator and tool pages. With Workers Caching on, HTML that
+ * carries no Cache-Control at all can be held at the edge heuristically — and
+ * `/browse` interpolates the operator password into inline JS. None of these
+ * pages is shareable, so say so explicitly.
+ * @returns {{ 'Content-Type': string, 'Cache-Control': string }}
+ */
+export function uncachedHtmlHeaders() {
+	return {
+		'Content-Type': 'text/html',
+		'Cache-Control': 'private, no-store',
+	};
+}
+
+/**
+ * Edge TTL for live objects. 0 means no edge copy, which is the default and
+ * matches the behavior before Workers Caching was enabled.
+ * @param {Object} env
+ * @returns {number}
+ */
+export function liveEdgeMaxAge(env) {
+	const configured = Number(env?.LIVE_EDGE_MAX_AGE);
+	if (!Number.isFinite(configured) || configured <= 0) return 0;
+	return Math.floor(configured);
 }
 
 /**
@@ -82,17 +137,21 @@ function stripWeakEtag(value) {
 }
 
 /**
- * Browser + edge headers use the same Cache-Control string. Live URLs revalidate;
- * there is no separate short edge TTL.
+ * Immutable objects use one policy everywhere. Live objects always tell browsers
+ * to revalidate; `edgeMaxAge` decides whether Cloudflare may hold a copy and
+ * answer that revalidation instead of R2. Writes purge the object's own tag, so
+ * a publish is still visible immediately.
  * @param {string|null|undefined} storedCacheControl
+ * @param {number} [edgeMaxAge] Seconds Cloudflare may serve a live object. 0 for no edge copy.
  * @returns {{ 'Cache-Control': string, 'Cloudflare-CDN-Cache-Control': string, 'CDN-Cache-Control': string }}
  */
-export function cacheHeadersForObject(storedCacheControl) {
+export function cacheHeadersForObject(storedCacheControl, edgeMaxAge = 0) {
 	const value = storedCacheControl || MUTABLE_CACHE_CONTROL;
+	const edge = isImmutableCacheControl(value) || edgeMaxAge <= 0 ? value : `public, max-age=${Math.floor(edgeMaxAge)}`;
 	return {
 		'Cache-Control': value,
-		'Cloudflare-CDN-Cache-Control': value,
-		'CDN-Cache-Control': value,
+		'Cloudflare-CDN-Cache-Control': edge,
+		'CDN-Cache-Control': edge,
 	};
 }
 
@@ -101,9 +160,10 @@ export function cacheHeadersForObject(storedCacheControl) {
  * @param {Headers} headers
  * @param {{ httpEtag?: string, httpMetadata?: { cacheControl?: string }, uploaded?: Date }} object
  * @param {string} key
+ * @param {number} [edgeMaxAge]
  */
-export function applyPublicCacheHeaders(headers, object, key) {
-	const cacheHeaders = cacheHeadersForObject(object?.httpMetadata?.cacheControl);
+export function applyPublicCacheHeaders(headers, object, key, edgeMaxAge = 0) {
+	const cacheHeaders = cacheHeadersForObject(object?.httpMetadata?.cacheControl, edgeMaxAge);
 	for (const [name, value] of Object.entries(cacheHeaders)) {
 		headers.set(name, value);
 	}
@@ -113,7 +173,7 @@ export function applyPublicCacheHeaders(headers, object, key) {
 	if (object?.uploaded) {
 		headers.set('Last-Modified', object.uploaded.toUTCString());
 	}
-	headers.set('Cache-Tag', cacheTagForKey(key));
+	headers.set('Cache-Tag', cacheTagsForKey(key).join(','));
 }
 
 /**

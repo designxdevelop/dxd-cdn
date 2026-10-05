@@ -3,6 +3,7 @@
  */
 
 import { getBrowsePasswordHTML, getBrowseHTML } from '../templates/browse.js';
+import { uncachedHtmlHeaders } from '../utils/cache.js';
 
 /**
  * Handle GET request for browse page
@@ -18,13 +19,13 @@ export function handleBrowseGet(url, env) {
 	if (!env.UPLOAD_PASSWORD || password !== env.UPLOAD_PASSWORD) {
 		// Serve password form
 		return new Response(getBrowsePasswordHTML(), {
-			headers: { 'Content-Type': 'text/html' },
+			headers: uncachedHtmlHeaders(),
 		});
 	}
 
 	// Password valid, serve the file browser
 	return new Response(getBrowseHTML(url.origin, password), {
-		headers: { 'Content-Type': 'text/html' },
+		headers: uncachedHtmlHeaders(),
 	});
 }
 
@@ -45,7 +46,7 @@ export async function handleBrowsePost(request, env, url) {
 		if (!env.UPLOAD_PASSWORD || password !== env.UPLOAD_PASSWORD) {
 			return new Response(getBrowsePasswordHTML('Invalid password. Please try again.'), {
 				status: 401,
-				headers: { 'Content-Type': 'text/html' },
+				headers: uncachedHtmlHeaders(),
 			});
 		}
 
@@ -55,7 +56,7 @@ export async function handleBrowsePost(request, env, url) {
 		console.error('Browse auth error:', error);
 		return new Response(getBrowsePasswordHTML('An error occurred. Please try again.'), {
 			status: 500,
-			headers: { 'Content-Type': 'text/html' },
+			headers: uncachedHtmlHeaders(),
 		});
 	}
 }
