@@ -253,16 +253,19 @@ Visit `https://your-domain.com/convert` for a web interface to:
 
 ## API Endpoints
 
-Auth: `Authorization: Bearer <UPLOAD_PASSWORD>` or `?password=` (same secret as `/upload`). JSON APIs send `Cache-Control: no-store`.
+The `/api/objects` routes take a scoped app token or `UPLOAD_PASSWORD`, as either `Authorization: Bearer <token>` or `?password=`. Every other route is operator-only and accepts `?password=<UPLOAD_PASSWORD>` alone. JSON APIs send `Cache-Control: no-store`.
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/objects` | PUT | Store an object (`X-DXD-Object-Key`, optional `X-DXD-Cache-Control` / `X-DXD-Overwrite`) |
-| `/api/objects` | GET | Authenticated meta or body (`?key=` and `as=meta` or `as=body`) |
-| `/api/files` | GET | List files with optional search/filter |
-| `/api/file-stats` | GET | Get analytics for a specific file |
-| `/api/file-content` | GET | Get HTML file content |
-| `/api/delete-file` | DELETE | Delete a file |
+| Endpoint | Method | Auth | Description |
+|----------|--------|------|-------------|
+| `/api/objects` | PUT | App token or operator | Store an object (`X-DXD-Object-Key`, optional `X-DXD-Cache-Control` / `X-DXD-Overwrite`); needs `put` |
+| `/api/objects` | GET | App token or operator | Authenticated meta or body (`?key=` and `as=meta` or `as=body`); needs `get` |
+| `/api/objects` | HEAD | App token or operator | Metadata in headers (`?key=`); needs `get` |
+| `/api/objects` | DELETE | App token or operator | Delete an object (`?key=`); needs `delete` |
+| `/api/objects/list` | GET | App token or operator | Paginated listing (`?prefix=&cursor=&limit=&delimiter=`); needs `list` |
+| `/api/files` | GET | Operator | List files with optional search/filter |
+| `/api/file-stats` | GET | Operator | Get analytics for a specific file |
+| `/api/file-content` | GET | Operator | Get HTML file content |
+| `/api/delete-file` | DELETE | Operator | Delete a file |
 
 ### Query Parameters
 
