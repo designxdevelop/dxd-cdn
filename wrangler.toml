@@ -24,11 +24,12 @@ enabled = true
 [vars]
 ENVIRONMENT = "production"
 PUBLIC_ORIGIN = "https://cdn.designxdevelop.com"
-# Edge TTL for live objects, in seconds. 0 keeps every live GET reaching the
-# Worker, so a republish is visible immediately with no reliance on purge.
-# Raise it only once purge-on-write is confirmed working in production: a failed
-# purge hides a publish for up to this long. Browsers always revalidate.
-LIVE_EDGE_MAX_AGE = 0
+# Edge TTL for live objects, in seconds. A failed purge hides a publish for up
+# to this long, so this stays at 0 until purge-on-write is confirmed against
+# production. Confirmed 2026-10-05: Objects API PUT returns `purged: true` and a
+# republish serves the new bytes on the next GET. Browsers always revalidate at
+# any value; rollback is this value back to 0 plus a deploy, with no code change.
+LIVE_EDGE_MAX_AGE = 3600
 
 # Secrets (set via: wrangler secret put UPLOAD_PASSWORD)
 # UPLOAD_PASSWORD - Required for /upload and /browse routes
