@@ -82,7 +82,7 @@ describe('public object serving', () => {
 		expect(response.headers.get('Cache-Tag')).toBe('dxd-cdn:acme,dxd-cdn-key:acme%2Fsite%2Fprod%2Fconfig.json');
 	});
 
-	test('live objects get no edge copy at the default LIVE_EDGE_MAX_AGE', async () => {
+	test('live objects get no edge copy at LIVE_EDGE_MAX_AGE = 0', async () => {
 		await put('acme/site/prod/config.json', '{}');
 		const response = await SELF.fetch('https://cdn.designxdevelop.com/acme/site/prod/config.json');
 		expect(response.headers.get('Cache-Control')).toBe(MUTABLE_CACHE_CONTROL);
