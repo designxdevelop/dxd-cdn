@@ -8,6 +8,10 @@ export default defineConfig({
 			miniflare: {
 				bindings: {
 					UPLOAD_PASSWORD: 'test-upload-password',
+					// Pinned so the suite tests cache behavior rather than whatever
+					// production currently ships. Tests that care about a non-zero
+					// edge TTL set env.LIVE_EDGE_MAX_AGE themselves.
+					LIVE_EDGE_MAX_AGE: 0,
 				},
 			},
 		}),
