@@ -185,16 +185,18 @@ CORS is `*`. Mutable files revalidate; hashed files are cached for a year.
 
 | Object | Browser | Cloudflare |
 | --- | --- | --- |
-| Live pointer (`personalization.js`, `config.json`, `/upload` files) | Revalidate every navigation (`max-age=0, must-revalidate`) | `LIVE_EDGE_MAX_AGE` seconds, `0` by default (no edge copy) |
+| Live pointer (`personalization.js`, `config.json`, `/upload` files) | Revalidate every navigation (`max-age=0, must-revalidate`) | `LIVE_EDGE_MAX_AGE` seconds, `3600` in production |
 | Hashed / versioned (`*.abc123.js`, GitHub `/gh/:repo/:version/:file`) | 1 year `immutable` | 1 year `immutable` |
 
 Overwrite the live key and the next navigation sees the new bytes (or a `304` if nothing changed).
 
-Workers Caching is enabled, so immutable snapshots now get a real edge copy and
-request collapsing. Live keys are still served straight from the Worker, because
-`LIVE_EDGE_MAX_AGE` is `0`. Every live write purges that key's own cache tag, so
-giving live URLs an edge copy is a one-value change in `wrangler.toml` — see
-[api-objects.md](./api-objects.md#live-objects-at-the-edge) for what to verify
-first.
+Workers Caching is enabled, so immutable snapshots and live keys both get a real
+edge copy and request collapsing. Every live write purges that key's own cache
+tag, which is what keeps a publish visible immediately.
+
+Because the edge now holds live keys, **write them through this binding or
+`PUT /api/objects`** — a direct `wrangler r2 object put` skips the purge and the
+old body survives for up to an hour. See
+[api-objects.md](./api-objects.md#writing-a-live-key-outside-this-api).
 
 See [api-objects.md](./api-objects.md) for headers and the HTTP contract.

@@ -135,6 +135,8 @@ Live keys are governed by `LIVE_EDGE_MAX_AGE` in `wrangler.toml`:
 Browsers always revalidate, at any setting. Raising the value trades a
 dependence on purge for far fewer Worker invocations and R2 reads.
 
+It is `3600` in production as of 2026-10-05, after the checks below passed.
+
 **Before raising it**, confirm purge actually works in production, because a
 failed purge hides a publish for up to that long:
 
@@ -151,6 +153,23 @@ the key and surface as `purged: false`.
 
 To roll back, set `LIVE_EDGE_MAX_AGE = 0` and deploy — no code change. The Worker
 version is part of the cache key, so a deploy also starts from an empty cache.
+
+### Writing a live key outside this API
+
+Whenever `LIVE_EDGE_MAX_AGE` is above `0`, **publish live keys through this API**
+(or the `CdnObjects` binding), never a direct `wrangler r2 object put` or an
+S3-compatible client. A direct R2 write changes the bytes without running the
+Worker, so nothing purges, and the edge keeps serving the old body for up to the
+full TTL.
+
+Nor can you repair that from outside. The zone `purge_cache` endpoint does not
+reach what Workers Caching is holding — measured 2026-10-05 on this zone, a
+single-file purge of a stale live key returned `success: true` and left
+`CF-Cache-Status: HIT` on the old bytes for over 30 seconds, while the same key
+republished through `PUT /api/objects` served the new bytes on the next request.
+Dashboard **Purge Everything** does clear it, which is a blunt instrument for one
+file. A `Cache Purge` API token is still worth having for zone-wide work, but it
+is not the recovery path for a live key.
 
 `publishHashedAsset()` is idempotent: redeploying unchanged content finds the
 snapshot already there, confirms it is byte-identical, and refreshes only the
