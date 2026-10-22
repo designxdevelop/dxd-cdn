@@ -1,23 +1,23 @@
 {
-	"name": "dxd-cdn",
-	"version": "2.0.0",
-	"description": "Hybrid CDN with file upload, browsing, analytics, GitHub proxy, and multi-client support",
-	"main": "src/index.js",
-	"type": "module",
-	"workspaces": [
-		"packages/*"
-	],
-	"scripts": {
-		"deploy": "wrangler deploy",
-		"dev": "wrangler dev",
-		"start": "wrangler dev",
-		"typecheck": "npm run typecheck -w @dxd/cdn",
-		"test": "npm run test -w @dxd/cdn && vitest run"
-	},
-	"devDependencies": {
-		"@cloudflare/vitest-pool-workers": "^0.22.0",
-		"@cloudflare/workers-types": "^5.20260815.1",
-		"vitest": "^4.1.10",
-		"wrangler": "^4.123.0"
-	}
+  "name": "dxd-cdn",
+  "version": "2.0.0",
+  "description": "Hybrid CDN with file upload, browsing, analytics, GitHub proxy, and multi-client support",
+  "main": "src/index.js",
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "start": "wrangler dev",
+    "typecheck": "npm run typecheck -w @dxd/cdn",
+    "test": "npm run test -w @dxd/cdn && vitest run"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.22.0",
+    "@cloudflare/workers-types": "^5.20260815.1",
+    "vitest": "^4.1.12",
+    "wrangler": "^4.151.3"
+  }
 }
