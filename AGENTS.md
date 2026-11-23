@@ -6,6 +6,7 @@ Cloudflare Worker CDN for uploads, browsing, GitHub proxying, and direct R2 serv
 
 - `npm run dev` (or `npm run start`) runs local Wrangler development.
 - `npm run typecheck` checks the client package; `npm test` runs the client tests plus the Worker tests, which execute inside `workerd` against a local R2 bucket.
+- CI (`.github/workflows/ci.yml`) runs `npm ci`, the typecheck, `npm test`, and a `wrangler deploy --dry-run` build on every pull request and on pushes to `main`.
 - `./scripts/smoke.sh` exercises the documented end-to-end path against a running `npm run dev`.
 - Use `npm run deploy` only for an explicitly authorized deployment.
 
