@@ -119,9 +119,10 @@ function parseAppTokens(raw) {
  */
 export async function scopeForToken(env, token) {
 	if (!token) return null;
-	const digest = await sha256Hex(token);
+	// Independent digests: hash both at once instead of one after the other.
+	const [digest, operatorDigest] = await Promise.all([sha256Hex(token), env.UPLOAD_PASSWORD ? sha256Hex(env.UPLOAD_PASSWORD) : null]);
 
-	if (env.UPLOAD_PASSWORD && digestsMatch(digest, await sha256Hex(env.UPLOAD_PASSWORD))) {
+	if (operatorDigest && digestsMatch(digest, operatorDigest)) {
 		return OPERATOR_SCOPE;
 	}
 

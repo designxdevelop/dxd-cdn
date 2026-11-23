@@ -287,13 +287,15 @@ export async function getFilesList(bucket, options = {}) {
 			// Platform bookkeeping is not a file anybody uploaded
 			.filter((filename) => !RESERVED_KEY_PREFIXES.some((reserved) => filename.startsWith(reserved)));
 
+		// Parse each key once; the option lists and every filter reuse it.
+		const parsedByFile = new Map(files.map((filename) => [filename, parseFilePath(filename)]));
+
 		// Extract unique clients, projects, and environments from file paths
 		const clientsSet = new Set();
 		const projectsSet = new Set();
 		const envsSet = new Set();
 
-		files.forEach((filename) => {
-			const parsed = parseFilePath(filename);
+		for (const parsed of parsedByFile.values()) {
 			if (parsed) {
 				clientsSet.add(parsed.client);
 				projectsSet.add(`${parsed.client}/${parsed.project}`);
@@ -301,29 +303,17 @@ export async function getFilesList(bucket, options = {}) {
 					envsSet.add(parsed.env);
 				}
 			}
-		});
-
-		// Filter by client
-		if (client !== 'all') {
-			files = files.filter((filename) => {
-				const parsed = parseFilePath(filename);
-				return parsed && parsed.client === client;
-			});
 		}
 
-		// Filter by project (expects format: client/project)
-		if (project !== 'all') {
+		// Filter by client, project (format: client/project) and environment in one pass
+		if (client !== 'all' || project !== 'all' || env !== 'all') {
 			files = files.filter((filename) => {
-				const parsed = parseFilePath(filename);
-				return parsed && `${parsed.client}/${parsed.project}` === project;
-			});
-		}
-
-		// Filter by environment
-		if (env !== 'all') {
-			files = files.filter((filename) => {
-				const parsed = parseFilePath(filename);
-				return parsed && parsed.env === env;
+				const parsed = parsedByFile.get(filename);
+				if (!parsed) return false;
+				if (client !== 'all' && parsed.client !== client) return false;
+				if (project !== 'all' && `${parsed.client}/${parsed.project}` !== project) return false;
+				if (env !== 'all' && parsed.env !== env) return false;
+				return true;
 			});
 		}
 

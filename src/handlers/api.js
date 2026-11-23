@@ -167,8 +167,8 @@ export async function handleDeleteFileApi(url, env) {
 			});
 		}
 
-		// Check if file exists
-		const object = await env.CDN_BUCKET.get(filename);
+		// Check if file exists. head() answers that without opening the body.
+		const object = await env.CDN_BUCKET.head(filename);
 		if (!object) {
 			return new Response(JSON.stringify({ error: 'File not found' }), {
 				status: 404,

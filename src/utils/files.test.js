@@ -84,6 +84,32 @@ describe('getFilesList', () => {
 		expect(result.envs).toEqual(['prod', 'staging']);
 	});
 
+	test('filters by client, project and environment, alone and combined', async () => {
+		const bucket = bucketWith([
+			'acme/site/prod/a.js',
+			'acme/site/staging/b.js',
+			'acme/blog/prod/c.js',
+			'heard/site/prod/d.js',
+			'loose.txt',
+		]);
+
+		expect((await getFilesList(bucket, { client: 'acme' })).files).toEqual([
+			'acme/blog/prod/c.js',
+			'acme/site/prod/a.js',
+			'acme/site/staging/b.js',
+		]);
+		expect((await getFilesList(bucket, { project: 'acme/site' })).files).toEqual(['acme/site/prod/a.js', 'acme/site/staging/b.js']);
+		expect((await getFilesList(bucket, { env: 'prod' })).files).toEqual([
+			'acme/blog/prod/c.js',
+			'acme/site/prod/a.js',
+			'heard/site/prod/d.js',
+		]);
+		expect((await getFilesList(bucket, { client: 'acme', env: 'prod' })).files).toEqual(['acme/blog/prod/c.js', 'acme/site/prod/a.js']);
+		expect((await getFilesList(bucket)).files).toContain('loose.txt');
+		// Facets describe the whole listing, not the filtered result
+		expect((await getFilesList(bucket, { client: 'heard' })).clients).toEqual(['acme', 'heard']);
+	});
+
 	test('still hides analytics keys', async () => {
 		const bucket = bucketWith(['acme/site/prod/a.js', 'analytics/acme/site/prod/a.js.json']);
 		const result = await getFilesList(bucket);
