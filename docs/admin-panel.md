@@ -4,6 +4,32 @@
 replace, purge and delete files, and to see storage and request counts. It
 replaces the old `/browse` and `/upload` pages, which redirect to it.
 
+## What it does
+
+- **Folders.** Keys are browsed as folders (`client/project/env/...`) with a
+  file count and total size per folder. The address bar tracks the folder, so
+  back, forward and bookmarks work. "Show all files" flattens everything under
+  the current folder, and search always looks through the whole subtree.
+- **Previews.** Image thumbnails in the list; images, video, audio and the
+  first 64 KB of text files in the detail view.
+- **Bulk actions.** Tick files (or the header box for all shown) to copy every
+  URL, purge them from the edge, or delete them.
+- **Copy as.** The URL, or a ready-made tag for the file type: a script,
+  stylesheet, image, video or audio tag, or an `@font-face` rule.
+- **Rename or move.** Copies to the new path with the same metadata and removes
+  the old one. Never overwrites. The old URL stops working, so this is
+  owner-only like delete.
+- **Upload.** Drop files or whole folders anywhere on the page to upload into
+  the folder you are in, keeping the dropped folder structure. An existing file
+  is only replaced when you click Replace.
+- **Usage.** Storage totals, storage by client, largest and newest files, and
+  request counts.
+
+Thumbnails and media previews load from the public URL, so they count as
+ordinary requests. The text preview goes through `/admin/api/preview`, which
+always answers `text/plain` with `nosniff` and a sandbox CSP, so stored HTML or
+SVG can never run on the admin origin.
+
 ## How sign-in works
 
 There is no password. [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/policies/access/)
@@ -35,7 +61,8 @@ Other protections on the panel:
 - **No cross-origin access.** Admin responses carry no CORS headers, are
   `no-store`, and cannot be framed.
 - **Owners delete, everyone else does not.** Only emails in `ADMIN_OWNERS` can
-  delete. Other signed-in people can browse, upload, replace and purge. With
+  delete, rename or move. Other signed-in people can browse, upload, replace
+  and purge. With
   `ADMIN_OWNERS` empty, nobody can delete from the panel. The rule is enforced
   in the storage layer's scope check, not just hidden in the page.
 - **Named audit trail.** Every upload, delete and manual purge is logged with

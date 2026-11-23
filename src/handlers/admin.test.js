@@ -248,3 +248,72 @@ describe('admin files', () => {
 		expect((await admin('/admin/api/nope', { token: '' })).status).toBe(401);
 	});
 });
+
+describe('admin rename, move and preview', () => {
+	test('an owner moves a file: new key has the same bytes and metadata, the old key and its counters are gone', async () => {
+		await env.CDN_BUCKET.put('acme/site/prod/old.css', 'body{}', {
+			httpMetadata: { contentType: 'text/css; charset=utf-8', cacheControl: 'public, max-age=0, must-revalidate' },
+		});
+		await env.CDN_BUCKET.put('_cdn/analytics/acme/site/prod/old.css.json', '{"requestCount":4}');
+
+		const response = await admin('/admin/api/move?from=acme/site/prod/old.css&to=acme/site/prod/css/new.css', { method: 'POST' });
+		expect(response.status).toBe(200);
+		expect((await response.json()).url).toBe(`${ORIGIN}/acme/site/prod/css/new.css`);
+
+		const moved = await env.CDN_BUCKET.get('acme/site/prod/css/new.css');
+		expect(await moved.text()).toBe('body{}');
+		expect(moved.httpMetadata.contentType).toBe('text/css; charset=utf-8');
+		expect(moved.httpMetadata.cacheControl).toBe('public, max-age=0, must-revalidate');
+		expect(await env.CDN_BUCKET.head('acme/site/prod/old.css')).toBeNull();
+		expect(await env.CDN_BUCKET.head('_cdn/analytics/acme/site/prod/old.css.json')).toBeNull();
+	});
+
+	test('a move never overwrites, and leaves the source in place when it is refused', async () => {
+		await env.CDN_BUCKET.put('acme/site/prod/a.txt', 'a');
+		await env.CDN_BUCKET.put('acme/site/prod/b.txt', 'b');
+
+		const clash = await admin('/admin/api/move?from=acme/site/prod/a.txt&to=acme/site/prod/b.txt', { method: 'POST' });
+		expect(clash.status).toBe(409);
+		expect(await (await env.CDN_BUCKET.get('acme/site/prod/a.txt')).text()).toBe('a');
+		expect(await (await env.CDN_BUCKET.get('acme/site/prod/b.txt')).text()).toBe('b');
+
+		for (const to of ['../x.txt', '_cdn/x.txt', 'admin/x.txt', 'acme/site/prod/a.txt']) {
+			const bad = await admin(`/admin/api/move?from=acme/site/prod/a.txt&to=${encodeURIComponent(to)}`, { method: 'POST' });
+			expect(bad.status, to).toBe(400);
+		}
+		expect((await admin('/admin/api/move?from=acme/site/prod/missing.txt&to=acme/site/prod/c.txt', { method: 'POST' })).status).toBe(404);
+		expect(await env.CDN_BUCKET.head('acme/site/prod/a.txt')).not.toBeNull();
+	});
+
+	test('a teammate cannot move, and a cross-site move is refused', async () => {
+		await env.CDN_BUCKET.put('acme/site/prod/a.txt', 'a');
+		const path = '/admin/api/move?from=acme/site/prod/a.txt&to=acme/site/prod/z.txt';
+
+		expect((await admin(path, { method: 'POST', claims: { email: TEAMMATE } })).status).toBe(403);
+		expect((await admin(path, { method: 'POST', headers: { Origin: 'https://evil.example' } })).status).toBe(403);
+		expect(await env.CDN_BUCKET.head('acme/site/prod/a.txt')).not.toBeNull();
+		expect(await env.CDN_BUCKET.head('acme/site/prod/z.txt')).toBeNull();
+	});
+
+	test('preview returns stored HTML as inert plain text', async () => {
+		await env.CDN_BUCKET.put('acme/site/prod/page.html', '<script>alert(1)</script>', { httpMetadata: { contentType: 'text/html' } });
+
+		const response = await admin('/admin/api/preview?key=acme/site/prod/page.html');
+		expect(response.status).toBe(200);
+		expect(response.headers.get('Content-Type')).toBe('text/plain; charset=utf-8');
+		expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff');
+		expect(response.headers.get('Content-Security-Policy')).toContain('sandbox');
+		expect(response.headers.get('X-DXD-Truncated')).toBe('false');
+		expect(await response.text()).toBe('<script>alert(1)</script>');
+
+		expect((await admin('/admin/api/preview?key=acme/site/prod/none.html')).status).toBe(404);
+		expect((await admin('/admin/api/preview?key=acme/site/prod/page.html', { token: '' })).status).toBe(401);
+	});
+
+	test('preview stops at the size cap', async () => {
+		await env.CDN_BUCKET.put('acme/site/prod/big.js', 'x'.repeat(70 * 1024));
+		const response = await admin('/admin/api/preview?key=acme/site/prod/big.js');
+		expect(response.headers.get('X-DXD-Truncated')).toBe('true');
+		expect((await response.text()).length).toBe(64 * 1024);
+	});
+});

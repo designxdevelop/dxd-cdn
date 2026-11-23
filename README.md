@@ -126,9 +126,10 @@ npm run deploy
 ### Admin panel
 
 Visit `https://your-domain.com/admin` and sign in through Cloudflare Access to:
-- Browse, search and filter every uploaded file, with size, upload time and request counts
-- Upload by drag and drop into a folder (client/project/env structure recommended); an existing file is only replaced when you say so
-- Copy URLs, purge one file's edge copy, and (owners only) delete
+- Browse files as folders with thumbnails and previews, and search any subtree
+- Drop files or whole folders anywhere to upload into the current folder; an existing file is only replaced when you say so
+- Copy a URL or a ready-made HTML tag, and purge edge copies, one file or many at once
+- Rename, move and delete (owners only)
 - See storage per client, the largest and newest files, and request counts
 
 There is no password: the signed-in person is the credential, and the browser

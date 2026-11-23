@@ -252,6 +252,41 @@ export async function removeObject(env, scope, key) {
 	return { ok: true, key: normalized, purged: purge.purged };
 }
 
+/**
+ * Rename or move: copy to the new key with the same metadata, then remove the
+ * old one. The old URL stops working, so this needs `delete` on the source as
+ * well as `put` on the destination, and it never overwrites.
+ * @param {Object} env
+ * @param {import('./scopes.js').Scope} scope
+ * @param {string} from
+ * @param {string} to
+ * @param {string} [origin]
+ * @returns {Promise<{ ok: true, from: string, key: string, url: string, purged: boolean } | { ok: false, code: ObjectErrorCode, key?: string }>}
+ */
+export async function moveObject(env, scope, from, to, origin) {
+	const source = normalizeObjectKey(from);
+	const target = normalizeObjectKey(to);
+	if (!source || !target || source === target) return { ok: false, code: 'INVALID_KEY' };
+	if (!scopeAllows(scope, 'get', source) || !scopeAllows(scope, 'delete', source)) return { ok: false, code: 'FORBIDDEN', key: source };
+	if (!scopeAllows(scope, 'put', target)) return { ok: false, code: 'FORBIDDEN', key: target };
+
+	const object = await env.CDN_BUCKET.get(source);
+	if (!object) return { ok: false, code: 'NOT_FOUND', key: source };
+
+	const written = await env.CDN_BUCKET.put(target, object.body, {
+		httpMetadata: object.httpMetadata,
+		customMetadata: object.customMetadata,
+		onlyIf: new Headers({ 'If-None-Match': '*' }),
+	});
+	if (written === null) return { ok: false, code: 'EXISTS', key: target };
+
+	const removed = await removeObject(env, scope, source);
+	if (!removed.ok) return removed;
+
+	console.log('object moved', { app: scope.app, from: source, to: target });
+	return { ok: true, from: source, key: target, url: `${publicOrigin(env, origin)}/${target}`, purged: removed.purged };
+}
+
 /** R2 returns at most this many keys per `list` call. */
 export const MAX_LIST_LIMIT = 1000;
 

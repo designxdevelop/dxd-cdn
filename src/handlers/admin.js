@@ -9,7 +9,7 @@
 
 import { ANALYTICS_KEY_PREFIX, IMMUTABLE_CACHE_CONTROL, MUTABLE_CACHE_CONTROL, RESERVED_KEY_PREFIXES } from '../config/constants.js';
 import { verifyAccess } from '../services/access.js';
-import { normalizeObjectKey, objectErrorMessage, objectErrorStatus, removeObject, storeObject } from '../services/objects.js';
+import { moveObject, normalizeObjectKey, objectErrorMessage, objectErrorStatus, removeObject, storeObject } from '../services/objects.js';
 import { ALL_PREFIXES, OBJECT_OPS } from '../services/scopes.js';
 import adminHtml from '../templates/html/admin.html';
 import { MAX_LIST_PAGES, getFileStats } from '../utils/files.js';
@@ -17,6 +17,9 @@ import { purgeObjectKey } from '../utils/purge.js';
 
 /** Sent by the page on every write; a cross-site form cannot set it. */
 const CSRF_HEADER = 'X-DXD-Admin';
+
+/** How much of a file the text preview reads. */
+const PREVIEW_BYTES = 64 * 1024;
 
 /** Counter objects read per usage page. Stays under the 50-subrequest floor. */
 const USAGE_PAGE_SIZE = 40;
@@ -78,6 +81,7 @@ function page() {
 		`script-src 'nonce-${nonce}'`,
 		`style-src 'nonce-${nonce}'`,
 		"img-src 'self'",
+		"media-src 'self'",
 		"connect-src 'self'",
 		"base-uri 'none'",
 		"form-action 'none'",
@@ -159,6 +163,26 @@ async function listUsage(env, url) {
 	return { counters, cursor: listed.truncated ? listed.cursor : null };
 }
 
+/**
+ * The first part of a file as plain text, for the code preview. Always
+ * `text/plain` with nosniff, so stored HTML or SVG can never run on the admin
+ * origin.
+ */
+async function preview(env, url) {
+	const key = normalizeObjectKey(url.searchParams.get('key') || '');
+	if (!key) return json({ error: 'Invalid or missing key' }, 400);
+	const object = await env.CDN_BUCKET.get(key, { range: { offset: 0, length: PREVIEW_BYTES } });
+	if (!object) return json({ error: 'Not found' }, 404);
+	return new Response(object.body, {
+		headers: {
+			'Content-Type': 'text/plain; charset=utf-8',
+			'Content-Security-Policy': "default-src 'none'; sandbox",
+			'X-DXD-Truncated': String(object.size > PREVIEW_BYTES),
+			...SECURITY_HEADERS,
+		},
+	});
+}
+
 async function upload(request, env, url, identity) {
 	const policy = url.searchParams.get('cache') === 'immutable' ? IMMUTABLE_CACHE_CONTROL : MUTABLE_CACHE_CONTROL;
 	const result = await storeObject(env, scopeFor(identity), {
@@ -213,6 +237,23 @@ export async function handleAdmin(request, env, url) {
 		const key = normalizeObjectKey(url.searchParams.get('key') || '');
 		if (!key) return json({ error: 'Invalid or missing key' }, 400);
 		return json(await getFileStats(env.CDN_BUCKET, key));
+	}
+
+	if (route === 'preview' && request.method === 'GET') {
+		return preview(env, url);
+	}
+
+	if (route === 'move' && request.method === 'POST') {
+		if (!identity.owner) return json({ error: 'Only an owner can rename or move files' }, 403);
+		const result = await moveObject(
+			env,
+			scopeFor(identity),
+			url.searchParams.get('from') || '',
+			url.searchParams.get('to') || '',
+			url.origin,
+		);
+		if (!result.ok) return objectFail(result);
+		return json(result);
 	}
 
 	if (route === 'usage' && request.method === 'GET') {

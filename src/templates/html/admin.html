@@ -128,6 +128,7 @@
 				display: flex;
 				gap: 8px;
 				flex-wrap: wrap;
+				align-items: center;
 				margin-bottom: 12px;
 			}
 			.toolbar input[type='search'] {
@@ -320,6 +321,118 @@
 			.bad {
 				color: var(--danger);
 			}
+			.crumbs {
+				display: flex;
+				flex-wrap: wrap;
+				align-items: center;
+				gap: 2px;
+				margin-bottom: 10px;
+			}
+			.crumbs button {
+				border-color: transparent;
+				background: none;
+				padding: 4px 8px;
+			}
+			.crumbs button:hover {
+				background: var(--hover);
+			}
+			.crumbs button[aria-current='page'] {
+				font-weight: 600;
+			}
+			.crumbs .sep {
+				color: var(--muted);
+			}
+			.bulk {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 8px;
+				align-items: center;
+				background: var(--panel);
+				border: 1px solid var(--accent);
+				border-radius: 8px;
+				padding: 8px 12px;
+				margin-bottom: 12px;
+				position: sticky;
+				top: 8px;
+				z-index: 2;
+			}
+			td.check,
+			th.check {
+				width: 34px;
+				padding-right: 0;
+			}
+			.entry {
+				display: flex;
+				align-items: center;
+				gap: 10px;
+				min-width: 0;
+			}
+			.entry .name {
+				word-break: break-all;
+			}
+			.thumb {
+				width: 32px;
+				height: 32px;
+				flex: none;
+				border-radius: 5px;
+				border: 1px solid var(--line);
+				background: var(--hover);
+				display: grid;
+				place-items: center;
+				font-size: 10px;
+				font-weight: 600;
+				color: var(--muted);
+				text-transform: uppercase;
+				overflow: hidden;
+			}
+			.thumb.folder {
+				background: none;
+				border-color: transparent;
+				font-size: 20px;
+			}
+			.thumb img {
+				width: 100%;
+				height: 100%;
+				object-fit: contain;
+			}
+			td {
+				vertical-align: middle;
+			}
+			video.preview,
+			audio.preview {
+				width: 100%;
+			}
+			pre.preview {
+				margin: 0;
+				padding: 10px;
+				max-height: 260px;
+				overflow: auto;
+				width: 100%;
+				background: var(--bg);
+				font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+				white-space: pre-wrap;
+				word-break: break-all;
+			}
+			.rename {
+				display: flex;
+				gap: 8px;
+			}
+			.rename input {
+				flex: 1;
+			}
+			#overlay {
+				position: fixed;
+				inset: 0;
+				z-index: 10;
+				display: grid;
+				place-items: center;
+				background: rgba(0, 0, 0, 0.55);
+				color: #fff;
+				font-size: 18px;
+				font-weight: 600;
+				border: 4px dashed var(--accent);
+				pointer-events: none;
+			}
 			[hidden] {
 				display: none !important;
 			}
@@ -345,19 +458,27 @@
 
 			<section id="view-files">
 				<div class="toolbar">
-					<input type="search" id="search" placeholder="Search files" aria-label="Search files" />
-					<select id="client" aria-label="Client"></select>
-					<select id="project" aria-label="Project"></select>
-					<select id="env" aria-label="Environment"></select>
+					<input type="search" id="search" placeholder="Search this folder and everything in it" aria-label="Search files" />
+					<label><input type="checkbox" id="flat" /> Show all files</label>
 					<button id="refresh">Refresh</button>
 					<button class="primary" id="open-upload">Upload</button>
+				</div>
+				<nav class="crumbs" id="crumbs" aria-label="Folder"></nav>
+				<div class="bulk" id="bulk" hidden>
+					<b id="bulk-count"></b>
+					<button id="bulk-copy">Copy URLs</button>
+					<button id="bulk-purge">Purge cache</button>
+					<button class="danger" id="bulk-delete" hidden>Delete</button>
+					<button id="bulk-clear">Clear selection</button>
+					<span class="dim" id="bulk-status" role="status"></span>
 				</div>
 				<p class="note" id="count"></p>
 				<div class="card">
 					<table>
 						<thead>
 							<tr>
-								<th><button data-sort="key">File</button></th>
+								<th class="check"><input type="checkbox" id="select-all" aria-label="Select all files shown" /></th>
+								<th><button data-sort="key">Name</button></th>
 								<th class="num"><button data-sort="size">Size</button></th>
 								<th class="num hide-narrow"><button data-sort="uploaded">Uploaded</button></th>
 							</tr>
@@ -428,7 +549,7 @@
 				<button data-close>Close</button>
 			</div>
 			<div class="dialog-body">
-				<img class="preview" id="detail-preview" alt="" hidden />
+				<div id="detail-preview"></div>
 				<dl>
 					<dt>URL</dt>
 					<dd><a id="detail-url" target="_blank" rel="noopener noreferrer"></a></dd>
@@ -445,11 +566,17 @@
 					<dt>Last served</dt>
 					<dd id="detail-last"></dd>
 				</dl>
+				<div class="rename" id="rename-row" hidden>
+					<input type="text" id="rename-input" aria-label="New path" autocomplete="off" spellcheck="false" />
+					<button class="primary" id="rename-save">Move</button>
+				</div>
 				<p class="note" id="detail-status" role="status"></p>
 			</div>
 			<div class="dialog-foot">
 				<button id="detail-copy">Copy URL</button>
+				<button id="detail-copy-tag" hidden>Copy HTML tag</button>
 				<button id="detail-purge">Purge cache</button>
+				<button id="detail-rename" hidden>Rename or move</button>
 				<span class="spacer"></span>
 				<button class="danger" id="detail-delete" hidden>Delete</button>
 			</div>
@@ -470,20 +597,42 @@
 					Never changes (hashed or versioned file, cached for a year, cannot be replaced)
 				</label>
 				<div class="drop" id="drop">
-					Drop files here or
+					Drop files or folders anywhere, or
 					<button id="pick">Choose files</button>
+					<button id="pick-folder">Choose a folder</button>
 					<input type="file" id="file-input" multiple hidden />
+					<input type="file" id="folder-input" webkitdirectory hidden />
 				</div>
 				<ul class="queue" id="queue"></ul>
 			</div>
 		</dialog>
 
+		<div id="overlay" hidden>Drop to upload here</div>
+
 		<script nonce="{{NONCE}}">
 			'use strict';
 			const $ = (id) => document.getElementById(id);
 			const PAGE = 300;
-			const IMAGE = /\.(png|jpe?g|gif|webp|svg)$/i;
-			const state = { files: [], truncated: false, sort: 'key', descending: false, shown: PAGE, current: null, usage: [], usageCursor: null };
+			const IMAGE = /\.(png|jpe?g|gif|webp|svg|avif|ico)$/i;
+			const VIDEO = /\.(mp4|webm|mov)$/i;
+			const AUDIO = /\.(mp3|wav|ogg|m4a)$/i;
+			const TEXT = /\.(js|mjs|css|html?|json|txt|md|xml|ya?ml|map|csv)$/i;
+			const FONT = /\.(woff2?|ttf|otf)$/i;
+			/** Thumbnails are fetched from the public URL, so keep them small. */
+			const THUMB_MAX = 2 * 1024 * 1024;
+			const state = {
+				files: [],
+				truncated: false,
+				path: '',
+				sort: 'key',
+				descending: false,
+				shown: PAGE,
+				current: null,
+				selected: new Set(),
+				canDelete: false,
+				usage: [],
+				usageCursor: null,
+			};
 
 			function el(tag, props = {}, ...children) {
 				const node = document.createElement(tag);
@@ -514,8 +663,33 @@
 				return Number.isNaN(date.getTime()) ? 'Unknown' : date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 			}
 
+			function plural(count, word) {
+				return count.toLocaleString() + ' ' + word + (count === 1 ? '' : 's');
+			}
+
 			function publicUrl(key) {
 				return location.origin + '/' + key.split('/').map(encodeURIComponent).join('/');
+			}
+
+			function extension(key) {
+				const name = key.split('/').pop();
+				return name.includes('.') ? name.split('.').pop().toLowerCase() : '';
+			}
+
+			/** The snippet someone would paste into a site for this file, or null. */
+			function htmlTag(key) {
+				const url = publicUrl(key);
+				const ext = extension(key);
+				if (ext === 'js' || ext === 'mjs') return '<script src="' + url + '" defer><' + '/script>';
+				if (ext === 'css') return '<link rel="stylesheet" href="' + url + '">';
+				if (IMAGE.test(key)) return '<img src="' + url + '" alt="" loading="lazy">';
+				if (VIDEO.test(key)) return '<video src="' + url + '" controls playsinline><' + '/video>';
+				if (AUDIO.test(key)) return '<audio src="' + url + '" controls><' + '/audio>';
+				if (FONT.test(key)) {
+					const format = ext === 'ttf' ? 'truetype' : ext === 'otf' ? 'opentype' : ext;
+					return "@font-face { font-family: 'Custom'; src: url('" + url + "') format('" + format + "'); font-display: swap; }";
+				}
+				return null;
 			}
 
 			function showError(message) {
@@ -523,7 +697,7 @@
 				$('error').hidden = !message;
 			}
 
-			async function api(path, options = {}) {
+			async function request(path, options = {}) {
 				const headers = new Headers(options.headers || {});
 				if (options.method && options.method !== 'GET') headers.set('X-DXD-Admin', '1');
 				const response = await fetch('/admin/api/' + path, { ...options, headers, credentials: 'same-origin', redirect: 'manual' });
@@ -531,6 +705,11 @@
 				if (response.type === 'opaqueredirect' || response.status === 401) {
 					throw new Error('Your sign-in has expired. Reload the page to sign in again.');
 				}
+				return response;
+			}
+
+			async function api(path, options = {}) {
+				const response = await request(path, options);
 				let body = null;
 				try {
 					body = await response.json();
@@ -546,93 +725,251 @@
 				return body;
 			}
 
-			function parts(key) {
-				const segments = key.split('/');
-				if (segments.length < 4) return null;
-				return { client: segments[0], project: segments[0] + '/' + segments[1], env: segments[2] };
+			/* ---------- Folders ---------- */
+
+			function readPath() {
+				let path = '';
+				try {
+					path = decodeURIComponent(location.hash.replace(/^#\/?/, ''));
+				} catch {
+					path = '';
+				}
+				path = path.replace(/^\/+|\/+$/g, '');
+				return path ? path + '/' : '';
 			}
 
-			function fillSelect(select, label, values) {
-				const previous = select.value;
-				select.replaceChildren(el('option', { value: '', text: label }), ...values.map((value) => el('option', { value, text: value })));
-				select.value = values.includes(previous) ? previous : '';
+			function go(path) {
+				const target = '#/' + path.split('/').map(encodeURIComponent).join('/');
+				if (location.hash === target) return;
+				location.hash = target;
 			}
 
-			function refreshFilters() {
-				const clients = new Set();
-				const projects = new Set();
-				const envs = new Set();
+			function renderCrumbs() {
+				const segments = state.path.split('/').filter(Boolean);
+				const nodes = [];
+				const add = (label, path, current) => {
+					const button = el('button', { text: label });
+					if (current) button.setAttribute('aria-current', 'page');
+					button.addEventListener('click', () => go(path));
+					nodes.push(button);
+				};
+				add('All files', '', !segments.length);
+				let built = '';
+				segments.forEach((segment, index) => {
+					built += segment + '/';
+					nodes.push(el('span', { class: 'sep', text: '/' }));
+					add(segment, built, index === segments.length - 1);
+				});
+				$('crumbs').replaceChildren(...nodes);
+			}
+
+			/** What the table shows: folders first (unless searching or flat), then files. */
+			function entries() {
+				const terms = $('search').value.toLowerCase().split(/\s+/).filter(Boolean);
+				const flat = $('flat').checked || terms.length > 0;
+				const folders = new Map();
+				const files = [];
+
 				for (const file of state.files) {
-					const parsed = parts(file.key);
-					if (!parsed) {
-						clients.add(file.key.split('/')[0]);
+					if (!file.key.startsWith(state.path)) continue;
+					const rest = file.key.slice(state.path.length);
+					const slash = rest.indexOf('/');
+					if (!flat && slash !== -1) {
+						const name = rest.slice(0, slash);
+						const folder = folders.get(name) || { folder: true, key: name, path: state.path + name + '/', size: 0, count: 0, uploaded: '' };
+						folder.size += file.size;
+						folder.count++;
+						if (file.uploaded > folder.uploaded) folder.uploaded = file.uploaded;
+						folders.set(name, folder);
 						continue;
 					}
-					clients.add(parsed.client);
-					if (!$('client').value || $('client').value === parsed.client) projects.add(parsed.project);
-					envs.add(parsed.env);
+					if (terms.length && !terms.every((term) => rest.toLowerCase().includes(term))) continue;
+					files.push(file);
 				}
-				const sorted = [...clients].sort();
-				fillSelect($('client'), 'All clients', sorted);
-				fillSelect($('project'), 'All projects', [...projects].sort());
-				fillSelect(
-					$('env'),
-					'All environments',
-					[...envs].filter((value) => value === 'prod' || value === 'staging').sort(),
-				);
-				fillSelect($('usage-client'), 'Everything', sorted);
-			}
 
-			function filtered() {
-				const terms = $('search').value.toLowerCase().split(/\s+/).filter(Boolean);
-				const client = $('client').value;
-				const project = $('project').value;
-				const env = $('env').value;
-				const list = state.files.filter((file) => {
-					if (client && !file.key.startsWith(client + '/')) return false;
-					if (project && !file.key.startsWith(project + '/')) return false;
-					if (env && (parts(file.key) || {}).env !== env) return false;
-					const lower = file.key.toLowerCase();
-					return terms.every((term) => lower.includes(term));
-				});
 				const direction = state.descending ? -1 : 1;
 				const field = state.sort;
-				list.sort((a, b) => (a[field] < b[field] ? -1 : a[field] > b[field] ? 1 : 0) * direction);
-				return list;
+				const compare = (a, b) => (a[field] < b[field] ? -1 : a[field] > b[field] ? 1 : 0) * direction;
+				return { folders: [...folders.values()].sort(compare), files: files.sort(compare) };
 			}
 
-			function fileRow(file) {
+			function thumb(file) {
+				const box = el('span', { class: 'thumb' });
+				if (IMAGE.test(file.key) && file.size <= THUMB_MAX) {
+					box.append(el('img', { src: publicUrl(file.key), alt: '', loading: 'lazy', decoding: 'async' }));
+				} else {
+					box.textContent = extension(file.key).slice(0, 4) || 'file';
+				}
+				return box;
+			}
+
+			function folderRow(folder) {
 				const row = el(
 					'tr',
 					{ class: 'row', tabindex: '0' },
-					el('td', { class: 'key', text: file.key }),
+					el('td', { class: 'check' }),
+					el(
+						'td',
+						{},
+						el(
+							'div',
+							{ class: 'entry' },
+							el('span', { class: 'thumb folder', text: '\u{1F4C1}' }),
+							el('span', { class: 'name', text: folder.key }),
+							el('span', { class: 'dim', text: plural(folder.count, 'file') }),
+						),
+					),
+					el('td', { class: 'num', text: bytes(folder.size) }),
+					el('td', { class: 'num hide-narrow', text: when(folder.uploaded) }),
+				);
+				row.addEventListener('click', () => go(folder.path));
+				row.addEventListener('keydown', (event) => {
+					if (event.key === 'Enter') go(folder.path);
+				});
+				return row;
+			}
+
+			function fileRow(file) {
+				const box = el('input', { type: 'checkbox', 'aria-label': 'Select ' + file.key });
+				box.checked = state.selected.has(file.key);
+				box.addEventListener('click', (event) => event.stopPropagation());
+				box.addEventListener('change', () => {
+					if (box.checked) state.selected.add(file.key);
+					else state.selected.delete(file.key);
+					renderBulk();
+				});
+				const row = el(
+					'tr',
+					{ class: 'row', tabindex: '0' },
+					el('td', { class: 'check' }, box),
+					el('td', {}, el('div', { class: 'entry' }, thumb(file), el('span', { class: 'name', text: file.key.slice(state.path.length) }))),
 					el('td', { class: 'num', text: bytes(file.size) }),
 					el('td', { class: 'num hide-narrow', text: when(file.uploaded) }),
 				);
 				row.addEventListener('click', () => openDetail(file));
 				row.addEventListener('keydown', (event) => {
-					if (event.key === 'Enter') openDetail(file);
+					if (event.key === 'Enter' && event.target === row) openDetail(file);
 				});
 				return row;
 			}
 
+			let visibleFiles = [];
+
 			function renderFiles() {
-				const list = filtered();
-				const visible = list.slice(0, state.shown);
-				$('rows').replaceChildren(...visible.map(fileRow));
-				if (!list.length) {
-					$('rows').append(el('tr', {}, el('td', { colspan: '3', class: 'dim', text: state.files.length ? 'No files match.' : 'No files yet.' })));
+				renderCrumbs();
+				const { folders, files } = entries();
+				visibleFiles = files.slice(0, Math.max(0, state.shown - folders.length));
+				$('rows').replaceChildren(...folders.slice(0, state.shown).map(folderRow), ...visibleFiles.map(fileRow));
+				if (!folders.length && !files.length) {
+					const empty = state.files.length ? 'Nothing here matches.' : 'No files yet. Drop some anywhere on this page.';
+					$('rows').append(el('tr', {}, el('td', { colspan: '4', class: 'dim', text: empty })));
 				}
-				$('more').hidden = list.length <= state.shown;
-				let summary = list.length + (list.length === 1 ? ' file' : ' files');
-				if (list.length !== state.files.length) summary += ' of ' + state.files.length;
-				if (state.truncated) summary += '. The bucket is larger than this panel lists, so some files are missing.';
+				$('more').hidden = folders.length + files.length <= state.shown;
+
+				const under = state.files.filter((file) => file.key.startsWith(state.path));
+				const total = under.reduce((sum, file) => sum + file.size, 0);
+				const parts = [];
+				if (folders.length) parts.push(plural(folders.length, 'folder'));
+				parts.push(plural(files.length, 'file'));
+				let summary = parts.join(', ') + ' shown. ' + plural(under.length, 'file') + ' and ' + bytes(total) + ' in total here.';
+				if (state.truncated) summary += ' The bucket is larger than this panel lists, so some files are missing.';
 				$('count').textContent = summary;
+				renderBulk();
 			}
 
-			function miniRows(target, entries) {
+			/* ---------- Bulk actions ---------- */
+
+			function renderBulk() {
+				const known = new Set(state.files.map((file) => file.key));
+				for (const key of [...state.selected]) if (!known.has(key)) state.selected.delete(key);
+				const count = state.selected.size;
+				$('bulk').hidden = !count;
+				$('bulk-count').textContent = plural(count, 'file') + ' selected';
+				$('bulk-delete').hidden = !state.canDelete;
+				$('bulk-delete').textContent = 'Delete';
+				$('bulk-delete').dataset.armed = '';
+				const shown = visibleFiles.length;
+				const chosen = visibleFiles.filter((file) => state.selected.has(file.key)).length;
+				$('select-all').checked = shown > 0 && chosen === shown;
+				$('select-all').indeterminate = chosen > 0 && chosen < shown;
+			}
+
+			$('select-all').addEventListener('change', (event) => {
+				for (const file of visibleFiles) {
+					if (event.target.checked) state.selected.add(file.key);
+					else state.selected.delete(file.key);
+				}
+				renderFiles();
+			});
+
+			$('bulk-clear').addEventListener('click', () => {
+				state.selected.clear();
+				$('bulk-status').textContent = '';
+				renderFiles();
+			});
+
+			$('bulk-copy').addEventListener('click', async () => {
+				const urls = [...state.selected].sort().map(publicUrl).join('\n');
+				try {
+					await navigator.clipboard.writeText(urls);
+					$('bulk-status').textContent = plural(state.selected.size, 'URL') + ' copied.';
+				} catch {
+					$('bulk-status').textContent = 'Copy was blocked by the browser.';
+				}
+			});
+
+			async function eachSelected(label, work) {
+				const keys = [...state.selected];
+				let done = 0;
+				let failed = 0;
+				for (const key of keys) {
+					$('bulk-status').textContent = label + ' ' + (done + failed + 1) + ' of ' + keys.length;
+					try {
+						await work(key);
+						done++;
+					} catch {
+						failed++;
+					}
+				}
+				return { done, failed };
+			}
+
+			$('bulk-purge').addEventListener('click', async () => {
+				let refused = 0;
+				const result = await eachSelected('Purging', async (key) => {
+					const outcome = await api('purge?key=' + encodeURIComponent(key), { method: 'POST' });
+					if (!outcome.purged) refused++;
+				});
+				const purged = result.done - refused;
+				$('bulk-status').textContent =
+					plural(purged, 'file') + ' purged.' + (refused + result.failed ? ' ' + (refused + result.failed) + ' did not go through.' : '');
+			});
+
+			$('bulk-delete').addEventListener('click', async () => {
+				const button = $('bulk-delete');
+				if (!button.dataset.armed) {
+					button.dataset.armed = '1';
+					button.textContent = 'Click again to delete ' + plural(state.selected.size, 'file') + ' for good';
+					return;
+				}
+				button.disabled = true;
+				const removed = new Set();
+				const result = await eachSelected('Deleting', async (key) => {
+					await api('objects?key=' + encodeURIComponent(key), { method: 'DELETE' });
+					removed.add(key);
+				});
+				state.files = state.files.filter((file) => !removed.has(file.key));
+				button.disabled = false;
+				renderFiles();
+				renderUsage();
+				showError(result.failed ? result.failed + ' could not be deleted.' : '');
+			});
+
+			/* ---------- Usage ---------- */
+
+			function miniRows(target, rows) {
 				target.replaceChildren(
-					...entries.map(([label, value, share]) => {
+					...rows.map(([label, value, share]) => {
 						const cell = el('td', { class: 'key', text: label });
 						if (share !== undefined) {
 							const bar = el('div', { class: 'bar' });
@@ -642,7 +979,7 @@
 						return el('tr', {}, cell, el('td', { class: 'num', text: value }));
 					}),
 				);
-				if (!entries.length) target.append(el('tr', {}, el('td', { class: 'dim', text: 'Nothing yet.' })));
+				if (!rows.length) target.append(el('tr', {}, el('td', { class: 'dim', text: 'Nothing yet.' })));
 			}
 
 			function renderUsage() {
@@ -675,6 +1012,12 @@
 						.slice(0, 10)
 						.map((file) => [file.key, when(file.uploaded)]),
 				);
+
+				const select = $('usage-client');
+				const previous = select.value;
+				const clients = [...perClient.keys()].sort();
+				select.replaceChildren(el('option', { value: '', text: 'Everything' }), ...clients.map((value) => el('option', { value, text: value })));
+				select.value = clients.includes(previous) ? previous : '';
 			}
 
 			function renderRequests() {
@@ -724,10 +1067,11 @@
 				} catch (error) {
 					showError(error.message);
 				}
-				refreshFilters();
 				renderFiles();
 				renderUsage();
 			}
+
+			/* ---------- One file ---------- */
 
 			function describeCache(value) {
 				if (value && value.includes('immutable')) return 'Never changes (cached for a year)';
@@ -737,6 +1081,31 @@
 			function resetDelete() {
 				$('detail-delete').textContent = 'Delete';
 				$('detail-delete').dataset.armed = '';
+			}
+
+			async function showPreview(file) {
+				const holder = $('detail-preview');
+				const url = publicUrl(file.key);
+				holder.replaceChildren();
+				if (IMAGE.test(file.key)) {
+					holder.append(el('img', { class: 'preview', src: url, alt: '' }));
+				} else if (VIDEO.test(file.key)) {
+					holder.append(el('video', { class: 'preview', src: url, controls: '', preload: 'metadata' }));
+				} else if (AUDIO.test(file.key)) {
+					holder.append(el('audio', { class: 'preview', src: url, controls: '', preload: 'none' }));
+				} else if (TEXT.test(file.key)) {
+					const block = el('pre', { class: 'preview', text: 'Loading preview' });
+					holder.append(block);
+					try {
+						const response = await request('preview?key=' + encodeURIComponent(file.key));
+						if (!response.ok) throw new Error('unavailable');
+						const text = await response.text();
+						if (state.current !== file) return;
+						block.textContent = text + (response.headers.get('X-DXD-Truncated') === 'true' ? '\n\n(preview cut off here)' : '');
+					} catch {
+						block.textContent = 'Preview unavailable.';
+					}
+				}
 			}
 
 			async function openDetail(file) {
@@ -752,12 +1121,12 @@
 				$('detail-requests').textContent = 'Loading';
 				$('detail-last').textContent = '';
 				$('detail-status').textContent = '';
+				$('detail-copy-tag').hidden = !htmlTag(file.key);
+				$('rename-row').hidden = true;
+				$('rename-input').value = file.key;
 				resetDelete();
-				const preview = $('detail-preview');
-				preview.hidden = !IMAGE.test(file.key);
-				if (preview.hidden) preview.removeAttribute('src');
-				else preview.src = url;
 				$('detail').showModal();
+				showPreview(file);
 				try {
 					const stats = await api('stats?key=' + encodeURIComponent(file.key));
 					if (state.current !== file) return;
@@ -768,14 +1137,17 @@
 				}
 			}
 
-			$('detail-copy').addEventListener('click', async () => {
+			async function copy(text, done) {
 				try {
-					await navigator.clipboard.writeText(publicUrl(state.current.key));
-					$('detail-status').textContent = 'URL copied.';
+					await navigator.clipboard.writeText(text);
+					$('detail-status').textContent = done;
 				} catch {
-					$('detail-status').textContent = 'Copy failed. Select the URL above instead.';
+					$('detail-status').textContent = 'Copy was blocked by the browser. Select the URL above instead.';
 				}
-			});
+			}
+
+			$('detail-copy').addEventListener('click', () => copy(publicUrl(state.current.key), 'URL copied.'));
+			$('detail-copy-tag').addEventListener('click', () => copy(htmlTag(state.current.key), 'HTML tag copied.'));
 
 			$('detail-purge').addEventListener('click', async () => {
 				$('detail-status').textContent = 'Purging';
@@ -787,6 +1159,39 @@
 				} catch (error) {
 					$('detail-status').textContent = error.message;
 				}
+			});
+
+			$('detail-rename').addEventListener('click', () => {
+				$('rename-row').hidden = !$('rename-row').hidden;
+				if (!$('rename-row').hidden) {
+					$('detail-status').textContent = 'The current URL stops working once the file is moved.';
+					$('rename-input').focus();
+				}
+			});
+
+			async function saveRename() {
+				const file = state.current;
+				const to = $('rename-input')
+					.value.trim()
+					.replace(/^\/+|\/+$/g, '');
+				if (!to || to === file.key) return;
+				$('rename-save').disabled = true;
+				try {
+					const result = await api('move?from=' + encodeURIComponent(file.key) + '&to=' + encodeURIComponent(to), { method: 'POST' });
+					state.selected.delete(file.key);
+					file.key = result.key;
+					$('detail').close();
+					renderFiles();
+					renderUsage();
+				} catch (error) {
+					$('detail-status').textContent =
+						error.code === 'EXISTS' ? 'A file already exists at that path.' : error.code === 'INVALID_KEY' ? 'That is not a valid path.' : error.message;
+				}
+				$('rename-save').disabled = false;
+			}
+			$('rename-save').addEventListener('click', saveRename);
+			$('rename-input').addEventListener('keydown', (event) => {
+				if (event.key === 'Enter') saveRename();
 			});
 
 			$('detail-delete').addEventListener('click', async () => {
@@ -802,7 +1207,6 @@
 					await api('objects?key=' + encodeURIComponent(file.key), { method: 'DELETE' });
 					state.files = state.files.filter((entry) => entry !== file);
 					$('detail').close();
-					refreshFilters();
 					renderFiles();
 					renderUsage();
 				} catch (error) {
@@ -811,6 +1215,13 @@
 				}
 				button.disabled = false;
 			});
+
+			$('detail').addEventListener('close', () => {
+				state.current = null;
+				$('detail-preview').replaceChildren();
+			});
+
+			/* ---------- Upload ---------- */
 
 			async function send(file, key, item, overwrite) {
 				const status = item.querySelector('.status');
@@ -842,13 +1253,16 @@
 				}
 			}
 
-			async function uploadAll(fileList) {
+			/** @param {Array<{ file: File, path: string }>} items `path` keeps any folder structure. */
+			async function uploadAll(items) {
 				const folder = $('upload-folder')
 					.value.trim()
 					.replace(/^\/+|\/+$/g, '');
 				let any = false;
-				for (const file of fileList) {
-					const key = folder ? folder + '/' + file.name : file.name;
+				for (const { file, path } of items) {
+					// Finder and Explorer litter; never something to publish.
+					if (/(^|\/)(\.DS_Store|Thumbs\.db)$/.test(path)) continue;
+					const key = folder ? folder + '/' + path : path;
 					const item = el('li', {}, el('span', { class: 'name', text: key }), el('span', { class: 'status dim', text: 'Waiting' }));
 					$('queue').append(item);
 					if (await send(file, key, item, false)) any = true;
@@ -856,30 +1270,77 @@
 				if (any) loadFiles();
 			}
 
-			$('open-upload').addEventListener('click', () => {
-				const preset = $('project').value || $('client').value;
-				if (preset && !$('upload-folder').value) $('upload-folder').value = preset + ($('env').value ? '/' + $('env').value : '');
-				$('queue').replaceChildren();
-				$('upload').showModal();
-			});
+			function openUpload() {
+				if (!$('upload').open) {
+					$('upload-folder').value = state.path.replace(/\/$/, '');
+					$('queue').replaceChildren();
+					$('upload').showModal();
+				}
+			}
+
+			/** Files from a drop, walking into any dropped folders. */
+			async function droppedItems(transfer) {
+				const roots = [...transfer.items].map((item) => (item.webkitGetAsEntry ? item.webkitGetAsEntry() : null)).filter(Boolean);
+				if (!roots.length) return [...transfer.files].map((file) => ({ file, path: file.name }));
+
+				const found = [];
+				async function walk(entry, prefix) {
+					if (entry.isFile) {
+						const file = await new Promise((resolve, reject) => entry.file(resolve, reject));
+						found.push({ file, path: prefix + entry.name });
+						return;
+					}
+					const reader = entry.createReader();
+					for (;;) {
+						const batch = await new Promise((resolve, reject) => reader.readEntries(resolve, reject));
+						if (!batch.length) break;
+						for (const child of batch) await walk(child, prefix + entry.name + '/');
+					}
+				}
+				for (const root of roots) await walk(root, '');
+				return found;
+			}
+
+			$('open-upload').addEventListener('click', openUpload);
 			$('pick').addEventListener('click', () => $('file-input').click());
+			$('pick-folder').addEventListener('click', () => $('folder-input').click());
 			$('file-input').addEventListener('change', (event) => {
-				uploadAll([...event.target.files]);
+				uploadAll([...event.target.files].map((file) => ({ file, path: file.name })));
 				event.target.value = '';
 			});
-			const drop = $('drop');
-			for (const name of ['dragenter', 'dragover']) {
-				drop.addEventListener(name, (event) => {
-					event.preventDefault();
-					drop.classList.add('over');
-				});
-			}
-			drop.addEventListener('dragleave', () => drop.classList.remove('over'));
-			drop.addEventListener('drop', (event) => {
-				event.preventDefault();
-				drop.classList.remove('over');
-				uploadAll([...event.dataTransfer.files]);
+			$('folder-input').addEventListener('change', (event) => {
+				uploadAll([...event.target.files].map((file) => ({ file, path: file.webkitRelativePath || file.name })));
+				event.target.value = '';
 			});
+
+			let dragDepth = 0;
+			const hasFiles = (event) => event.dataTransfer && [...event.dataTransfer.types].includes('Files');
+			window.addEventListener('dragenter', (event) => {
+				if (!hasFiles(event)) return;
+				event.preventDefault();
+				dragDepth++;
+				$('overlay').hidden = false;
+			});
+			window.addEventListener('dragover', (event) => {
+				if (hasFiles(event)) event.preventDefault();
+			});
+			window.addEventListener('dragleave', (event) => {
+				if (!hasFiles(event)) return;
+				dragDepth = Math.max(0, dragDepth - 1);
+				if (!dragDepth) $('overlay').hidden = true;
+			});
+			window.addEventListener('drop', async (event) => {
+				if (!hasFiles(event)) return;
+				event.preventDefault();
+				dragDepth = 0;
+				$('overlay').hidden = true;
+				// Read the entries before anything else: the transfer is emptied after this tick.
+				const pending = droppedItems(event.dataTransfer);
+				openUpload();
+				uploadAll(await pending);
+			});
+
+			/* ---------- Wiring ---------- */
 
 			for (const button of document.querySelectorAll('[data-close]')) {
 				button.addEventListener('click', () => button.closest('dialog').close());
@@ -897,11 +1358,10 @@
 				renderFiles();
 			}
 			$('search').addEventListener('input', changed);
-			$('project').addEventListener('change', changed);
-			$('env').addEventListener('change', changed);
-			$('client').addEventListener('change', () => {
-				$('project').value = '';
-				refreshFilters();
+			$('flat').addEventListener('change', changed);
+			window.addEventListener('hashchange', () => {
+				state.path = readPath();
+				$('search').value = '';
 				changed();
 			});
 			$('refresh').addEventListener('click', loadFiles);
@@ -921,10 +1381,14 @@
 			$('tab-files').addEventListener('click', () => show('files'));
 			$('tab-usage').addEventListener('click', () => show('usage'));
 
+			state.path = readPath();
 			api('me')
 				.then((me) => {
 					$('who').textContent = me.email;
-					$('detail-delete').hidden = !me.canDelete;
+					state.canDelete = Boolean(me.canDelete);
+					$('detail-delete').hidden = !state.canDelete;
+					$('detail-rename').hidden = !state.canDelete;
+					renderBulk();
 				})
 				.catch(() => {});
 			loadFiles();
