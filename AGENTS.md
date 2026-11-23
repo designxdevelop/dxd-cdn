@@ -13,8 +13,9 @@ Cloudflare Worker CDN for uploads, browsing, GitHub proxying, and direct R2 serv
 ## Worker constraints
 
 - Use ESM imports with explicit `.js` extensions.
-- Bindings are `CDN_BUCKET`, `UPLOAD_PASSWORD`, `APP_TOKENS`, `GITHUB_TOKEN`, `ENVIRONMENT`, `PUBLIC_ORIGIN`, `LIVE_EDGE_MAX_AGE`, `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD`, and `ADMIN_OWNERS`.
-- `/admin` and `/admin/api/*` are the admin panel. Every request there must pass `verifyAccess` (`src/services/access.js`), writes must pass the Origin and `X-DXD-Admin` check, and no bucket token may ever be sent to the browser or read from a URL. See `docs/admin-panel.md`.
+- Bindings are `CDN_BUCKET`, `UPLOAD_PASSWORD`, `APP_TOKENS`, `GITHUB_TOKEN`, `ENVIRONMENT`, `PUBLIC_ORIGIN`, `LIVE_EDGE_MAX_AGE`, `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD`, `ADMIN_OWNERS`, `CF_ZONE_ID`, and `CF_ANALYTICS_TOKEN`.
+- `/admin` and `/admin/api/*` are the admin panel. Every request there must pass `verifyAccess` (`src/services/access.js`), writes must pass the Origin and `X-DXD-Admin` check, and no bucket token may ever be sent to the browser or read from a URL. The one exception is a new app token, shown once to the owner who creates it. See `docs/admin-panel.md`.
+- Versions (`_cdn/versions/`), the activity log (`_cdn/activity/`) and panel-made app tokens (`_cdn/tokens/`) live in the bucket under the reserved `_cdn/` prefix. Write them only through `src/services/history.js` and `src/services/tokens.js`; a nightly cron (`scheduled` in `src/index.js`) expires the first two.
 - Keep Objects API semantics in `docs/api-objects.md`: public GET honors per-object cache control, and browsers always revalidate live objects. Whether Cloudflare keeps an edge copy of a live object is `LIVE_EDGE_MAX_AGE` (`0` means none); every live write purges that key's cache tag. Client Workers bind `CdnObjects`; see `docs/connect-a-worker.md`.
 - Enforce token prefix and operation scopes in `src/services/objects.js`, never in a handler, so the HTTP API and the `CdnObjects` RPC entrypoint cannot drift apart.
 - `api/`, `admin/`, `_cdn/`, and `analytics/` are reserved platform prefixes: not writable through the Objects API, not served on the public path.

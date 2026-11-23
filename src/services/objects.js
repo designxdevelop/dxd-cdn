@@ -13,6 +13,7 @@ import {
 	RESERVED_KEY_PREFIXES,
 } from '../config/constants.js';
 import { analyticsKeysFor } from '../utils/files.js';
+import { VERSION_ID, pruneVersions, recordActivity, snapshotVersion, versionKey } from './history.js';
 import { purgeObjectKey } from '../utils/purge.js';
 import { ALL_PREFIXES, scopeAllows } from './scopes.js';
 
@@ -149,6 +150,9 @@ export async function storeObject(env, scope, input) {
 		}
 	}
 
+	// A live key that is about to be replaced keeps its outgoing copy.
+	const previous = createOnly ? null : await snapshotVersion(env, key, scope.app, 'replaced');
+
 	const putOptions = {
 		httpMetadata: {
 			contentType,
@@ -169,6 +173,13 @@ export async function storeObject(env, scope, input) {
 	const purge = createOnly ? { purged: false, reason: 'immutable' } : await purgeObjectKey(key);
 
 	console.log('object stored', { app: scope.app, key, cacheControl, purged: purge.purged, purgeReason: purge.reason });
+	await recordActivity(env, {
+		actor: scope.app,
+		action: previous ? 'replace' : 'upload',
+		key,
+		size: written?.size,
+		version: previous?.id,
+	});
 
 	return {
 		ok: true,
@@ -228,15 +239,19 @@ export async function loadObjectBody(env, scope, key) {
  * @param {Object} env
  * @param {import('./scopes.js').Scope} scope
  * @param {string} key
+ * @param {{ keepVersion?: boolean, log?: boolean }} [options] Both default to true; a move turns them off.
  * @returns {Promise<{ ok: true, key: string, purged: boolean } | { ok: false, code: ObjectErrorCode, key?: string }>}
  */
-export async function removeObject(env, scope, key) {
+export async function removeObject(env, scope, key, options = {}) {
 	const normalized = normalizeObjectKey(key);
 	if (!normalized) return { ok: false, code: 'INVALID_KEY' };
 	if (!scopeAllows(scope, 'delete', normalized)) return { ok: false, code: 'FORBIDDEN', key: normalized };
 
 	const existing = await env.CDN_BUCKET.head(normalized);
 	if (!existing) return { ok: false, code: 'NOT_FOUND', key: normalized };
+
+	// The last copy stays restorable until the nightly clean-up expires it.
+	const kept = options.keepVersion === false ? null : await snapshotVersion(env, normalized, scope.app, 'deleted');
 
 	await env.CDN_BUCKET.delete(normalized);
 	try {
@@ -248,6 +263,9 @@ export async function removeObject(env, scope, key) {
 	const purge = await purgeObjectKey(normalized);
 
 	console.log('object deleted', { app: scope.app, key: normalized, purged: purge.purged, purgeReason: purge.reason });
+	if (options.log !== false) {
+		await recordActivity(env, { actor: scope.app, action: 'delete', key: normalized, size: existing.size, version: kept?.id });
+	}
 
 	return { ok: true, key: normalized, purged: purge.purged };
 }
@@ -280,11 +298,47 @@ export async function moveObject(env, scope, from, to, origin) {
 	});
 	if (written === null) return { ok: false, code: 'EXISTS', key: target };
 
-	const removed = await removeObject(env, scope, source);
+	const removed = await removeObject(env, scope, source, { keepVersion: false, log: false });
 	if (!removed.ok) return removed;
 
 	console.log('object moved', { app: scope.app, from: source, to: target });
+	await recordActivity(env, { actor: scope.app, action: 'move', key: source, to: target, size: written?.size });
 	return { ok: true, from: source, key: target, url: `${publicOrigin(env, origin)}/${target}`, purged: removed.purged };
+}
+
+/**
+ * Put a kept version back at its key. Whatever is there now is kept as a
+ * version first, so a restore can itself be undone. A file marked as never
+ * changing is not overwritten.
+ * @param {Object} env
+ * @param {import('./scopes.js').Scope} scope
+ * @param {string} key
+ * @param {string} versionId
+ * @param {string} [origin]
+ * @returns {Promise<{ ok: true, key: string, url: string, purged: boolean } | { ok: false, code: ObjectErrorCode, key?: string }>}
+ */
+export async function restoreVersion(env, scope, key, versionId, origin) {
+	const normalized = normalizeObjectKey(key);
+	if (!normalized) return { ok: false, code: 'INVALID_KEY' };
+	if (!scopeAllows(scope, 'put', normalized)) return { ok: false, code: 'FORBIDDEN', key: normalized };
+	if (!VERSION_ID.test(String(versionId || ''))) return { ok: false, code: 'NOT_FOUND', key: normalized };
+
+	const current = await env.CDN_BUCKET.head(normalized);
+	if (current?.httpMetadata?.cacheControl === IMMUTABLE_CACHE_CONTROL) return { ok: false, code: 'EXISTS', key: normalized };
+
+	const version = await env.CDN_BUCKET.get(versionKey(normalized, versionId));
+	if (!version) return { ok: false, code: 'NOT_FOUND', key: normalized };
+
+	// Pruning waits until the restore is written, so it cannot remove the copy being read.
+	const previous = current ? await snapshotVersion(env, normalized, scope.app, 'replaced', { prune: false }) : null;
+	const written = await env.CDN_BUCKET.put(normalized, version.body, { httpMetadata: version.httpMetadata });
+	await pruneVersions(env, normalized);
+	const purge = await purgeObjectKey(normalized);
+
+	console.log('object restored', { app: scope.app, key: normalized, version: versionId, purged: purge.purged });
+	await recordActivity(env, { actor: scope.app, action: 'restore', key: normalized, size: written?.size, version: previous?.id });
+
+	return { ok: true, key: normalized, url: `${publicOrigin(env, origin)}/${normalized}`, purged: purge.purged };
 }
 
 /** R2 returns at most this many keys per `list` call. */
@@ -334,15 +388,18 @@ export async function listObjects(env, scope, options = {}) {
 	return {
 		ok: true,
 		prefix,
-		objects: page.objects.map((object) => ({
+		// Platform bookkeeping under the reserved prefixes is nobody's file.
+		objects: page.objects
+			.filter((object) => !isReservedKey(object.key))
+			.map((object) => ({
 			key: object.key,
 			size: object.size,
 			uploaded: object.uploaded instanceof Date ? object.uploaded.toISOString() : object.uploaded,
 			etag: object.httpEtag,
 			contentType: object.httpMetadata?.contentType || null,
-			cacheControl: object.httpMetadata?.cacheControl || null,
-		})),
-		prefixes: page.delimitedPrefixes || [],
+				cacheControl: object.httpMetadata?.cacheControl || null,
+			})),
+		prefixes: (page.delimitedPrefixes || []).filter((prefix) => !isReservedKey(prefix)),
 		truncated: Boolean(page.truncated),
 		cursor: page.truncated ? page.cursor : null,
 	};

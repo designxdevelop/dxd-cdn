@@ -190,6 +190,16 @@ describe('request analytics', () => {
 		expect(stats.firstServed).toBe('2026-01-01T00:00:00.000Z');
 	});
 
+	test('a preview loaded by the admin panel itself is not counted', async () => {
+		await put('acme/site/prod/thumb.png', 'x');
+		await SELF.fetch('https://cdn.designxdevelop.com/acme/site/prod/thumb.png', { headers: { 'Sec-Fetch-Site': 'same-origin' } });
+		await scheduler.wait(100);
+		expect(await env.CDN_BUCKET.head('_cdn/analytics/acme/site/prod/thumb.png.json')).toBeNull();
+
+		await SELF.fetch('https://cdn.designxdevelop.com/acme/site/prod/thumb.png', { headers: { 'Sec-Fetch-Site': 'cross-site' } });
+		expect((await settledCount('acme/site/prod/thumb.png')).requestCount).toBe(1);
+	});
+
 	test('a 304 revalidation is not counted as a fresh serve', async () => {
 		await put('acme/site/prod/counted.js', 'x');
 		const first = await SELF.fetch('https://cdn.designxdevelop.com/acme/site/prod/counted.js');

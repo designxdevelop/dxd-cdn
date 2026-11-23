@@ -15,12 +15,18 @@ Two kinds of token reach this API:
 
 | Token | Scope |
 | --- | --- |
+| A token made in the admin panel's Tokens tab | Only the folders and operations chosen for it. Revocable there, no deploy |
 | An `APP_TOKENS` entry | Only the prefixes and operations that entry grants |
 | `UPLOAD_PASSWORD` | Operator: every operation, the whole bucket |
 
 Give each app its own token. The operator secret should not travel to app CI.
 
 ### Scoped app tokens
+
+The easiest way to make one is the **Tokens** tab of the admin panel
+(`docs/admin-panel.md`): it shows the token once, stores only its hash, and can
+revoke it at any time. The `APP_TOKENS` secret below still works and is the
+way to do it without the panel.
 
 `APP_TOKENS` is one secret holding a JSON object keyed by the **SHA-256 of each
 token**, so the plaintext only ever lives in the app that uses it:

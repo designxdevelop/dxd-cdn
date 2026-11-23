@@ -9,11 +9,17 @@
  *     "<sha256(token)>": { "app": "studio", "prefixes": ["dxd-studio/"], "ops": ["put", "get"] }
  *   }
  *
+ * Tokens made in the admin panel are stored the same way, one object per token
+ * at `_cdn/tokens/<sha256(token)>.json`, so they can be added and revoked
+ * without a deploy (src/services/tokens.js).
+ *
  * `UPLOAD_PASSWORD` stays valid as the operator token: every op, every prefix.
  *
  * Enforcement lives in src/services/objects.js so the HTTP Objects API and the
  * CdnObjects RPC entrypoint cannot drift apart.
  */
+
+import { TOKENS_KEY_PREFIX } from '../config/constants.js';
 
 /** A `prefixes` entry meaning "the whole bucket". */
 export const ALL_PREFIXES = '*';
@@ -73,7 +79,7 @@ export function presentedToken(request) {
  * @param {unknown} entry
  * @returns {Scope|null}
  */
-function normalizeScope(entry) {
+export function normalizeScope(entry) {
 	if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return null;
 	const app = typeof entry.app === 'string' && entry.app ? entry.app : null;
 	const prefixes = Array.isArray(entry.prefixes) ? entry.prefixes.filter((value) => typeof value === 'string' && value) : [];
@@ -86,7 +92,7 @@ function normalizeScope(entry) {
  * @param {string|undefined} raw
  * @returns {Array<[string, Scope]>}
  */
-function parseAppTokens(raw) {
+export function parseAppTokens(raw) {
 	if (!raw) return [];
 	let parsed;
 	try {
@@ -130,7 +136,16 @@ export async function scopeForToken(env, token) {
 	for (const [candidate, scope] of parseAppTokens(env.APP_TOKENS)) {
 		if (digestsMatch(digest, candidate)) match = scope;
 	}
-	return match;
+	if (match || !env.CDN_BUCKET) return match;
+
+	// Panel-made tokens. The digest is the object name, so this is one lookup.
+	try {
+		const stored = await env.CDN_BUCKET.get(`${TOKENS_KEY_PREFIX}${digest}.json`);
+		return stored ? normalizeScope(await stored.json()) : null;
+	} catch (error) {
+		console.error('Stored token lookup failed', { error: error.message });
+		return null;
+	}
 }
 
 /**
