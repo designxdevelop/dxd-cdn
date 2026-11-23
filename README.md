@@ -126,9 +126,10 @@ npm run deploy
 ### Admin panel
 
 Visit `https://your-domain.com/admin` and sign in through Cloudflare Access to:
-- Browse, search and filter every uploaded file, with size, upload time and request counts
-- Upload by drag and drop into a folder (client/project/env structure recommended); an existing file is only replaced when you say so
-- Copy URLs, purge one file's edge copy, and (owners only) delete
+- Browse files as folders with thumbnails and previews, and search any subtree
+- Drop files or whole folders anywhere to upload into the current folder; an existing file is only replaced when you say so
+- Copy a URL or a ready-made HTML tag, and purge edge copies, one file or many at once
+- Rename, move and delete (owners only)
 - See storage per client, the largest and newest files, and request counts
 
 There is no password: the signed-in person is the credential, and the browser
@@ -214,6 +215,8 @@ unless you override `ORIGIN`.
 | `ACCESS_AUD` | For `/admin` | Audience (AUD) tag of the Access application covering `/admin` |
 | `ADMIN_OWNERS` | No | Comma-separated emails allowed to delete from the panel |
 | `APP_TOKENS` | No | JSON of scoped per-app tokens keyed by `sha256(token)`. Without it, only the operator token works |
+| `CF_ZONE_ID` | For Traffic | Zone id, for the admin panel's Traffic view |
+| `CF_ANALYTICS_TOKEN` | For Traffic | Secret. API token with Zone → Analytics → Read only |
 | `GITHUB_TOKEN` | For GitHub proxy | GitHub Personal Access Token |
 | `ENVIRONMENT` | No | Set to "production" in prod |
 | `PUBLIC_ORIGIN` | No | Public origin in RPC/service-binding URLs (HTTP handlers use the request origin). Production: `https://cdn.designxdevelop.com` |

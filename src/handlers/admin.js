@@ -7,16 +7,36 @@
  * identity is the credential, and the Worker acts on the bucket for them.
  */
 
-import { ANALYTICS_KEY_PREFIX, IMMUTABLE_CACHE_CONTROL, MUTABLE_CACHE_CONTROL, RESERVED_KEY_PREFIXES } from '../config/constants.js';
+import {
+	ANALYTICS_KEY_PREFIX,
+	IMMUTABLE_CACHE_CONTROL,
+	LEGACY_ANALYTICS_KEY_PREFIX,
+	MUTABLE_CACHE_CONTROL,
+	RESERVED_KEY_PREFIXES,
+} from '../config/constants.js';
 import { verifyAccess } from '../services/access.js';
-import { normalizeObjectKey, objectErrorMessage, objectErrorStatus, removeObject, storeObject } from '../services/objects.js';
+import { listActivity, listVersions, recordActivity } from '../services/history.js';
+import {
+	moveObject,
+	normalizeObjectKey,
+	objectErrorMessage,
+	objectErrorStatus,
+	removeObject,
+	restoreVersion,
+	storeObject,
+} from '../services/objects.js';
 import { ALL_PREFIXES, OBJECT_OPS } from '../services/scopes.js';
+import { listTokens, mintToken, revokeToken } from '../services/tokens.js';
+import { loadTraffic, requestedPaths } from '../services/traffic.js';
 import adminHtml from '../templates/html/admin.html';
 import { MAX_LIST_PAGES, getFileStats } from '../utils/files.js';
 import { purgeObjectKey } from '../utils/purge.js';
 
 /** Sent by the page on every write; a cross-site form cannot set it. */
 const CSRF_HEADER = 'X-DXD-Admin';
+
+/** How much of a file the text preview reads. */
+const PREVIEW_BYTES = 64 * 1024;
 
 /** Counter objects read per usage page. Stays under the 50-subrequest floor. */
 const USAGE_PAGE_SIZE = 40;
@@ -78,6 +98,7 @@ function page() {
 		`script-src 'nonce-${nonce}'`,
 		`style-src 'nonce-${nonce}'`,
 		"img-src 'self'",
+		"media-src 'self'",
 		"connect-src 'self'",
 		"base-uri 'none'",
 		"form-action 'none'",
@@ -159,6 +180,86 @@ async function listUsage(env, url) {
 	return { counters, cursor: listed.truncated ? listed.cursor : null };
 }
 
+/**
+ * When each file was last served through the Worker, for the clean-up view.
+ * A counter object is rewritten on every counted request, so its own upload
+ * time is the last-served time and one listing answers for the whole bucket.
+ */
+async function lastServed(env) {
+	const served = {};
+	let truncated = false;
+	for (const prefix of [LEGACY_ANALYTICS_KEY_PREFIX, ANALYTICS_KEY_PREFIX]) {
+		let cursor;
+		for (let pageNumber = 0; ; pageNumber++) {
+			if (pageNumber >= MAX_LIST_PAGES) {
+				truncated = true;
+				break;
+			}
+			const listed = await env.CDN_BUCKET.list({ prefix, cursor, limit: 1000 });
+			for (const entry of listed.objects) {
+				const key = entry.key.slice(prefix.length).replace(/\.json$/, '');
+				const at = entry.uploaded instanceof Date ? entry.uploaded.toISOString() : String(entry.uploaded);
+				if (!served[key] || served[key] < at) served[key] = at;
+			}
+			if (!listed.truncated) break;
+			cursor = listed.cursor;
+		}
+	}
+	return { served, truncated };
+}
+
+/** App tokens: owners only, and the only place the panel ever returns a token. */
+async function tokens(request, env, url, identity) {
+	if (!identity.owner) return json({ error: 'Only an owner can manage app tokens' }, 403);
+	const actor = `admin:${identity.email}`;
+
+	if (request.method === 'GET') return json({ tokens: await listTokens(env) });
+
+	if (request.method === 'POST') {
+		let input;
+		try {
+			input = await request.json();
+		} catch {
+			return json({ error: 'Invalid request' }, 400);
+		}
+		const minted = await mintToken(env, input, identity.email);
+		if (!minted.ok) return json({ error: minted.error }, 400);
+		console.log('app token created', { app: actor, token: minted.app, prefixes: minted.prefixes, ops: minted.ops });
+		await recordActivity(env, { actor, action: 'token-create', key: minted.app });
+		return json(minted, 201);
+	}
+
+	if (request.method === 'DELETE') {
+		const revoked = await revokeToken(env, url.searchParams.get('id') || '');
+		if (!revoked.ok) return json({ error: revoked.error }, revoked.status);
+		console.log('app token revoked', { app: actor, token: revoked.app });
+		await recordActivity(env, { actor, action: 'token-revoke', key: revoked.app });
+		return json({ ok: true });
+	}
+
+	return json({ error: 'Not found' }, 404);
+}
+
+/**
+ * The first part of a file as plain text, for the code preview. Always
+ * `text/plain` with nosniff, so stored HTML or SVG can never run on the admin
+ * origin.
+ */
+async function preview(env, url) {
+	const key = normalizeObjectKey(url.searchParams.get('key') || '');
+	if (!key) return json({ error: 'Invalid or missing key' }, 400);
+	const object = await env.CDN_BUCKET.get(key, { range: { offset: 0, length: PREVIEW_BYTES } });
+	if (!object) return json({ error: 'Not found' }, 404);
+	return new Response(object.body, {
+		headers: {
+			'Content-Type': 'text/plain; charset=utf-8',
+			'Content-Security-Policy': "default-src 'none'; sandbox",
+			'X-DXD-Truncated': String(object.size > PREVIEW_BYTES),
+			...SECURITY_HEADERS,
+		},
+	});
+}
+
 async function upload(request, env, url, identity) {
 	const policy = url.searchParams.get('cache') === 'immutable' ? IMMUTABLE_CACHE_CONTROL : MUTABLE_CACHE_CONTROL;
 	const result = await storeObject(env, scopeFor(identity), {
@@ -213,6 +314,58 @@ export async function handleAdmin(request, env, url) {
 		const key = normalizeObjectKey(url.searchParams.get('key') || '');
 		if (!key) return json({ error: 'Invalid or missing key' }, 400);
 		return json(await getFileStats(env.CDN_BUCKET, key));
+	}
+
+	if (route === 'preview' && request.method === 'GET') {
+		return preview(env, url);
+	}
+
+	if (route === 'move' && request.method === 'POST') {
+		if (!identity.owner) return json({ error: 'Only an owner can rename or move files' }, 403);
+		const result = await moveObject(
+			env,
+			scopeFor(identity),
+			url.searchParams.get('from') || '',
+			url.searchParams.get('to') || '',
+			url.origin,
+		);
+		if (!result.ok) return objectFail(result);
+		return json(result);
+	}
+
+	if (route === 'versions' && request.method === 'GET') {
+		const key = normalizeObjectKey(url.searchParams.get('key') || '');
+		if (!key) return json({ error: 'Invalid or missing key' }, 400);
+		return json({ versions: await listVersions(env, key) });
+	}
+
+	if (route === 'restore' && request.method === 'POST') {
+		const result = await restoreVersion(
+			env,
+			scopeFor(identity),
+			url.searchParams.get('key') || '',
+			url.searchParams.get('version') || '',
+			url.origin,
+		);
+		if (!result.ok) return objectFail(result);
+		return json(result);
+	}
+
+	if (route === 'activity' && request.method === 'GET') {
+		return json(await listActivity(env, url.searchParams.get('cursor') || ''));
+	}
+
+	if (route === 'tokens') {
+		return tokens(request, env, url, identity);
+	}
+
+	if (route === 'traffic' && request.method === 'GET') {
+		return json(await loadTraffic(env, url.searchParams.get('range') || '24h'));
+	}
+
+	if (route === 'unused' && request.method === 'GET') {
+		const [counters, edge] = await Promise.all([lastServed(env), requestedPaths(env)]);
+		return json({ ...counters, edge });
 	}
 
 	if (route === 'usage' && request.method === 'GET') {

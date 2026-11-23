@@ -42,9 +42,19 @@ ACCESS_AUD = "e53991ddb7dc3a115e5a43fea48b9edb4885051d022e2a4e609a349305e78616"
 # can sign in can browse and upload only.
 ADMIN_OWNERS = "austin@designxdevelop.com"
 
+# Zone id for the Traffic view (Cloudflare dashboard > the domain > Overview >
+# API > Zone ID). Not a secret. Empty, or without the CF_ANALYTICS_TOKEN
+# secret, the panel shows traffic as not connected.
+CF_ZONE_ID = ""
+
+# Nightly clean-up of kept file versions (30 days) and the activity log (180 days).
+[triggers]
+crons = ["23 9 * * *"]
+
 # Secrets (set via: wrangler secret put UPLOAD_PASSWORD)
 # UPLOAD_PASSWORD - Operator token for the HTTP APIs (Authorization: Bearer). Not used by /admin
-# APP_TOKENS - Optional scoped per-app tokens for the Objects API
+# APP_TOKENS - Optional scoped per-app tokens for the Objects API (the panel's Tokens tab needs no secret)
+# CF_ANALYTICS_TOKEN - Optional. API token with Zone > Analytics > Read, for the Traffic view
 
 [observability]
 enabled = true

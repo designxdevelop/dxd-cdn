@@ -58,7 +58,11 @@
 			}
 			nav {
 				display: flex;
+				flex-wrap: wrap;
 				gap: 4px;
+			}
+			button.tab {
+				white-space: nowrap;
 			}
 			.who {
 				margin-left: auto;
@@ -128,6 +132,7 @@
 				display: flex;
 				gap: 8px;
 				flex-wrap: wrap;
+				align-items: center;
 				margin-bottom: 12px;
 			}
 			.toolbar input[type='search'] {
@@ -320,6 +325,218 @@
 			.bad {
 				color: var(--danger);
 			}
+			.crumbs {
+				display: flex;
+				flex-wrap: wrap;
+				align-items: center;
+				gap: 2px;
+				margin-bottom: 10px;
+			}
+			.crumbs button {
+				border-color: transparent;
+				background: none;
+				padding: 4px 8px;
+			}
+			.crumbs button:hover {
+				background: var(--hover);
+			}
+			.crumbs button[aria-current='page'] {
+				font-weight: 600;
+			}
+			.crumbs .sep {
+				color: var(--muted);
+			}
+			.bulk {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 8px;
+				align-items: center;
+				background: var(--panel);
+				border: 1px solid var(--accent);
+				border-radius: 8px;
+				padding: 8px 12px;
+				margin-bottom: 12px;
+				position: sticky;
+				top: 8px;
+				z-index: 2;
+			}
+			td.check,
+			th.check {
+				width: 34px;
+				padding-right: 0;
+			}
+			.entry {
+				display: flex;
+				align-items: center;
+				gap: 10px;
+				min-width: 0;
+			}
+			.entry .name {
+				word-break: break-all;
+			}
+			.thumb {
+				width: 32px;
+				height: 32px;
+				flex: none;
+				border-radius: 5px;
+				border: 1px solid var(--line);
+				background: var(--hover);
+				display: grid;
+				place-items: center;
+				font-size: 10px;
+				font-weight: 600;
+				color: var(--muted);
+				text-transform: uppercase;
+				overflow: hidden;
+			}
+			.thumb.folder {
+				background: none;
+				border-color: transparent;
+				font-size: 20px;
+			}
+			.thumb img {
+				width: 100%;
+				height: 100%;
+				object-fit: contain;
+			}
+			td {
+				vertical-align: middle;
+			}
+			video.preview,
+			audio.preview {
+				width: 100%;
+			}
+			pre.preview {
+				margin: 0;
+				padding: 10px;
+				max-height: 260px;
+				overflow: auto;
+				width: 100%;
+				background: var(--bg);
+				font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+				white-space: pre-wrap;
+				word-break: break-all;
+			}
+			.rename {
+				display: flex;
+				gap: 8px;
+			}
+			.rename input {
+				flex: 1;
+			}
+			#overlay {
+				position: fixed;
+				inset: 0;
+				z-index: 10;
+				display: grid;
+				place-items: center;
+				background: rgba(0, 0, 0, 0.55);
+				color: #fff;
+				font-size: 18px;
+				font-weight: 600;
+				border: 4px dashed var(--accent);
+				pointer-events: none;
+			}
+			.tiles {
+				display: grid;
+				grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+				gap: 16px;
+				margin-bottom: 16px;
+			}
+			.tile {
+				padding: 12px 14px;
+			}
+			.tile b {
+				display: block;
+				font-size: 24px;
+				font-variant-numeric: tabular-nums;
+			}
+			.chart {
+				position: relative;
+				padding: 12px;
+			}
+			.chart svg {
+				display: block;
+				width: 100%;
+				height: auto;
+			}
+			.chart .bar-mark {
+				fill: var(--accent);
+			}
+			.chart .hit {
+				fill: transparent;
+			}
+			.chart .hit:hover {
+				fill: var(--hover);
+			}
+			.chart .grid-line {
+				stroke: var(--line);
+				stroke-width: 1;
+			}
+			.chart text {
+				fill: var(--muted);
+				font-size: 11px;
+			}
+			.tip {
+				position: absolute;
+				pointer-events: none;
+				background: var(--text);
+				color: var(--bg);
+				border-radius: 6px;
+				padding: 6px 9px;
+				font-size: 12px;
+				white-space: nowrap;
+				transform: translate(-50%, -100%);
+			}
+			.stack {
+				display: grid;
+				gap: 16px;
+			}
+			.pill {
+				display: inline-block;
+				border: 1px solid var(--line);
+				border-radius: 999px;
+				padding: 1px 8px;
+				font-size: 12px;
+				margin: 0 4px 2px 0;
+			}
+			.form {
+				display: grid;
+				gap: 12px;
+				padding: 14px;
+			}
+			.form .row {
+				display: flex;
+				gap: 14px;
+				flex-wrap: wrap;
+				align-items: center;
+			}
+			.secret {
+				border: 1px solid var(--ok);
+				border-radius: 8px;
+				padding: 12px 14px;
+				display: grid;
+				gap: 8px;
+			}
+			.secret code {
+				font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+				word-break: break-all;
+				user-select: all;
+			}
+			h3.sub {
+				font-size: 13px;
+				margin: 4px 0 0;
+			}
+			td.key .dim {
+				word-break: normal;
+			}
+			td.act {
+				text-align: right;
+				white-space: nowrap;
+			}
+			td.act button {
+				padding: 3px 10px;
+			}
 			[hidden] {
 				display: none !important;
 			}
@@ -335,29 +552,41 @@
 			<h1>DXD CDN</h1>
 			<nav role="tablist">
 				<button class="tab" role="tab" id="tab-files" aria-selected="true">Files</button>
-				<button class="tab" role="tab" id="tab-usage" aria-selected="false">Usage</button>
+				<button class="tab" role="tab" id="tab-usage" aria-selected="false">Storage</button>
+				<button class="tab" role="tab" id="tab-traffic" aria-selected="false">Traffic</button>
+				<button class="tab" role="tab" id="tab-activity" aria-selected="false">Activity</button>
+				<button class="tab" role="tab" id="tab-cleanup" aria-selected="false">Clean-up</button>
+				<button class="tab" role="tab" id="tab-tokens" aria-selected="false" hidden>Tokens</button>
 			</nav>
 			<div class="who"><span id="who"></span><a href="/cdn-cgi/access/logout">Sign out</a></div>
 		</header>
 
 		<main>
 			<div class="banner" id="error" hidden></div>
+			<div class="bulk" id="bulk" hidden>
+				<b id="bulk-count"></b>
+				<button id="bulk-copy">Copy URLs</button>
+				<button id="bulk-purge">Purge cache</button>
+				<button class="danger" id="bulk-delete" hidden>Delete</button>
+				<button id="bulk-clear">Clear selection</button>
+				<span class="dim" id="bulk-status" role="status"></span>
+			</div>
 
 			<section id="view-files">
 				<div class="toolbar">
-					<input type="search" id="search" placeholder="Search files" aria-label="Search files" />
-					<select id="client" aria-label="Client"></select>
-					<select id="project" aria-label="Project"></select>
-					<select id="env" aria-label="Environment"></select>
+					<input type="search" id="search" placeholder="Search this folder and everything in it" aria-label="Search files" />
+					<label><input type="checkbox" id="flat" /> Show all files</label>
 					<button id="refresh">Refresh</button>
 					<button class="primary" id="open-upload">Upload</button>
 				</div>
+				<nav class="crumbs" id="crumbs" aria-label="Folder"></nav>
 				<p class="note" id="count"></p>
 				<div class="card">
 					<table>
 						<thead>
 							<tr>
-								<th><button data-sort="key">File</button></th>
+								<th class="check"><input type="checkbox" id="select-all" aria-label="Select all files shown" /></th>
+								<th><button data-sort="key">Name</button></th>
 								<th class="num"><button data-sort="size">Size</button></th>
 								<th class="num hide-narrow"><button data-sort="uploaded">Uploaded</button></th>
 							</tr>
@@ -420,6 +649,155 @@
 					</table>
 				</div>
 			</section>
+
+			<section id="view-traffic" hidden>
+				<div class="toolbar">
+					<select id="traffic-range" aria-label="Time range">
+						<option value="24h">Last 24 hours</option>
+						<option value="7d">Last 7 days</option>
+						<option value="30d">Last 30 days</option>
+					</select>
+					<span class="dim" id="traffic-status" role="status"></span>
+				</div>
+				<div class="card" id="traffic-setup" hidden>
+					<h2>Traffic is not connected yet</h2>
+					<div class="dialog-body">
+						<p class="note">
+							Real request and bandwidth numbers come from Cloudflare's analytics, which counts every request including the ones answered
+							from the edge cache. Two settings turn this on, and an owner does both once:
+						</p>
+						<p class="note">
+							1. In the Cloudflare dashboard, create an API token with only Zone, Analytics, Read on designxdevelop.com, then store it with
+							<code>npx wrangler secret put CF_ANALYTICS_TOKEN</code>.
+						</p>
+						<p class="note">2. Put the domain's Zone ID in <code>CF_ZONE_ID</code> in wrangler.toml and deploy.</p>
+					</div>
+				</div>
+				<div id="traffic-body" hidden>
+					<div class="tiles">
+						<div class="card tile"><b id="traffic-requests">0</b><span class="dim">requests</span></div>
+						<div class="card tile"><b id="traffic-bytes">0</b><span class="dim">sent to visitors</span></div>
+						<div class="card tile"><b id="traffic-cached">0%</b><span class="dim">answered from the edge cache</span></div>
+					</div>
+					<div class="stack">
+						<div class="card">
+							<h2 id="traffic-chart-title">Requests</h2>
+							<div class="chart" id="traffic-chart"></div>
+						</div>
+						<div class="grid">
+							<div class="card">
+								<h2>Most requested files</h2>
+								<table>
+									<tbody id="traffic-top"></tbody>
+								</table>
+							</div>
+							<div class="card">
+								<h2>Requested but missing (404)</h2>
+								<table>
+									<tbody id="traffic-missing"></tbody>
+								</table>
+							</div>
+						</div>
+					</div>
+				</div>
+			</section>
+
+			<section id="view-activity" hidden>
+				<p class="note">
+					Every upload, replace, rename and delete, from this panel and from app tokens, for the last 180 days. Replaced and deleted files
+					can be restored for 30 days.
+				</p>
+				<div class="card">
+					<table>
+						<tbody id="activity-rows"></tbody>
+					</table>
+				</div>
+				<p class="note"><button id="activity-more" hidden>Show older</button></p>
+			</section>
+
+			<section id="view-cleanup" hidden>
+				<div class="toolbar">
+					<label>
+						Not requested in
+						<select id="cleanup-days" aria-label="Unused for">
+							<option value="30">30 days</option>
+							<option value="90" selected>90 days</option>
+							<option value="180">180 days</option>
+							<option value="365">a year</option>
+						</select>
+					</label>
+					<button class="primary" id="cleanup-find">Find unused files</button>
+					<button id="cleanup-select" hidden>Select all of these</button>
+				</div>
+				<p class="note" id="cleanup-note">
+					Lists files uploaded before the cut-off that nobody has requested since. Nothing is deleted until you select files and delete them.
+				</p>
+				<div class="card">
+					<table>
+						<thead>
+							<tr>
+								<th class="check"></th>
+								<th>File</th>
+								<th class="num">Size</th>
+								<th class="num hide-narrow">Uploaded</th>
+								<th class="num hide-narrow">Last requested</th>
+							</tr>
+						</thead>
+						<tbody id="cleanup-rows"></tbody>
+					</table>
+				</div>
+			</section>
+
+			<section id="view-tokens" hidden>
+				<p class="note">
+					An app token lets a build script or another app publish to its own folders through the API, and nothing else. Give each app its
+					own, and revoke it here the moment it is no longer needed.
+				</p>
+				<div class="stack">
+					<div class="secret" id="token-new" hidden>
+						<b>Copy this token now. It is shown once and cannot be shown again.</b>
+						<code id="token-value"></code>
+						<div><button id="token-copy">Copy token</button> <span class="dim" id="token-copied" role="status"></span></div>
+					</div>
+					<div class="card">
+						<table>
+							<thead>
+								<tr>
+									<th>App</th>
+									<th>Folders</th>
+									<th>Can</th>
+									<th class="hide-narrow">Made</th>
+									<th></th>
+								</tr>
+							</thead>
+							<tbody id="token-rows"></tbody>
+						</table>
+					</div>
+					<div class="card">
+						<h2>New token</h2>
+						<div class="form">
+							<label class="field">
+								App name
+								<input type="text" id="token-app" placeholder="heard" autocomplete="off" spellcheck="false" />
+							</label>
+							<label class="field">
+								Folders it can use, separated by commas
+								<input type="text" id="token-prefixes" placeholder="heard/, heard-staging/" autocomplete="off" spellcheck="false" />
+							</label>
+							<div class="row">
+								<label><input type="checkbox" class="token-op" value="put" checked /> Upload and replace</label>
+								<label><input type="checkbox" class="token-op" value="get" checked /> Read</label>
+								<label><input type="checkbox" class="token-op" value="list" /> List</label>
+								<label><input type="checkbox" class="token-op" value="delete" /> Delete</label>
+							</div>
+							<div class="row">
+								<button class="primary" id="token-create">Create token</button>
+								<span class="bad" id="token-error" role="status"></span>
+							</div>
+						</div>
+					</div>
+				</div>
+			</section>
 		</main>
 
 		<dialog id="detail">
@@ -428,7 +806,7 @@
 				<button data-close>Close</button>
 			</div>
 			<div class="dialog-body">
-				<img class="preview" id="detail-preview" alt="" hidden />
+				<div id="detail-preview"></div>
 				<dl>
 					<dt>URL</dt>
 					<dd><a id="detail-url" target="_blank" rel="noopener noreferrer"></a></dd>
@@ -445,11 +823,23 @@
 					<dt>Last served</dt>
 					<dd id="detail-last"></dd>
 				</dl>
+				<div class="rename" id="rename-row" hidden>
+					<input type="text" id="rename-input" aria-label="New path" autocomplete="off" spellcheck="false" />
+					<button class="primary" id="rename-save">Move</button>
+				</div>
+				<div id="detail-versions" hidden>
+					<h3 class="sub">Earlier versions</h3>
+					<table>
+						<tbody id="version-rows"></tbody>
+					</table>
+				</div>
 				<p class="note" id="detail-status" role="status"></p>
 			</div>
 			<div class="dialog-foot">
 				<button id="detail-copy">Copy URL</button>
+				<button id="detail-copy-tag" hidden>Copy HTML tag</button>
 				<button id="detail-purge">Purge cache</button>
+				<button id="detail-rename" hidden>Rename or move</button>
 				<span class="spacer"></span>
 				<button class="danger" id="detail-delete" hidden>Delete</button>
 			</div>
@@ -470,20 +860,45 @@
 					Never changes (hashed or versioned file, cached for a year, cannot be replaced)
 				</label>
 				<div class="drop" id="drop">
-					Drop files here or
+					Drop files or folders anywhere, or
 					<button id="pick">Choose files</button>
+					<button id="pick-folder">Choose a folder</button>
 					<input type="file" id="file-input" multiple hidden />
+					<input type="file" id="folder-input" webkitdirectory hidden />
 				</div>
 				<ul class="queue" id="queue"></ul>
 			</div>
 		</dialog>
 
+		<div id="overlay" hidden>Drop to upload here</div>
+
 		<script nonce="{{NONCE}}">
 			'use strict';
 			const $ = (id) => document.getElementById(id);
 			const PAGE = 300;
-			const IMAGE = /\.(png|jpe?g|gif|webp|svg)$/i;
-			const state = { files: [], truncated: false, sort: 'key', descending: false, shown: PAGE, current: null, usage: [], usageCursor: null };
+			const IMAGE = /\.(png|jpe?g|gif|webp|svg|avif|ico)$/i;
+			const VIDEO = /\.(mp4|webm|mov)$/i;
+			const AUDIO = /\.(mp3|wav|ogg|m4a)$/i;
+			const TEXT = /\.(js|mjs|css|html?|json|txt|md|xml|ya?ml|map|csv)$/i;
+			const FONT = /\.(woff2?|ttf|otf)$/i;
+			/** Thumbnails are fetched from the public URL, so keep them small. */
+			const THUMB_MAX = 2 * 1024 * 1024;
+			const state = {
+				files: [],
+				truncated: false,
+				path: '',
+				sort: 'key',
+				descending: false,
+				shown: PAGE,
+				current: null,
+				selected: new Set(),
+				canDelete: false,
+				usage: [],
+				usageCursor: null,
+				activity: [],
+				activityCursor: null,
+				unused: [],
+			};
 
 			function el(tag, props = {}, ...children) {
 				const node = document.createElement(tag);
@@ -514,8 +929,33 @@
 				return Number.isNaN(date.getTime()) ? 'Unknown' : date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 			}
 
+			function plural(count, word) {
+				return count.toLocaleString() + ' ' + word + (count === 1 ? '' : 's');
+			}
+
 			function publicUrl(key) {
 				return location.origin + '/' + key.split('/').map(encodeURIComponent).join('/');
+			}
+
+			function extension(key) {
+				const name = key.split('/').pop();
+				return name.includes('.') ? name.split('.').pop().toLowerCase() : '';
+			}
+
+			/** The snippet someone would paste into a site for this file, or null. */
+			function htmlTag(key) {
+				const url = publicUrl(key);
+				const ext = extension(key);
+				if (ext === 'js' || ext === 'mjs') return '<script src="' + url + '" defer><' + '/script>';
+				if (ext === 'css') return '<link rel="stylesheet" href="' + url + '">';
+				if (IMAGE.test(key)) return '<img src="' + url + '" alt="" loading="lazy">';
+				if (VIDEO.test(key)) return '<video src="' + url + '" controls playsinline><' + '/video>';
+				if (AUDIO.test(key)) return '<audio src="' + url + '" controls><' + '/audio>';
+				if (FONT.test(key)) {
+					const format = ext === 'ttf' ? 'truetype' : ext === 'otf' ? 'opentype' : ext;
+					return "@font-face { font-family: 'Custom'; src: url('" + url + "') format('" + format + "'); font-display: swap; }";
+				}
+				return null;
 			}
 
 			function showError(message) {
@@ -523,7 +963,7 @@
 				$('error').hidden = !message;
 			}
 
-			async function api(path, options = {}) {
+			async function request(path, options = {}) {
 				const headers = new Headers(options.headers || {});
 				if (options.method && options.method !== 'GET') headers.set('X-DXD-Admin', '1');
 				const response = await fetch('/admin/api/' + path, { ...options, headers, credentials: 'same-origin', redirect: 'manual' });
@@ -531,6 +971,11 @@
 				if (response.type === 'opaqueredirect' || response.status === 401) {
 					throw new Error('Your sign-in has expired. Reload the page to sign in again.');
 				}
+				return response;
+			}
+
+			async function api(path, options = {}) {
+				const response = await request(path, options);
 				let body = null;
 				try {
 					body = await response.json();
@@ -546,93 +991,252 @@
 				return body;
 			}
 
-			function parts(key) {
-				const segments = key.split('/');
-				if (segments.length < 4) return null;
-				return { client: segments[0], project: segments[0] + '/' + segments[1], env: segments[2] };
+			/* ---------- Folders ---------- */
+
+			function readPath() {
+				let path = '';
+				try {
+					path = decodeURIComponent(location.hash.replace(/^#\/?/, ''));
+				} catch {
+					path = '';
+				}
+				path = path.replace(/^\/+|\/+$/g, '');
+				return path ? path + '/' : '';
 			}
 
-			function fillSelect(select, label, values) {
-				const previous = select.value;
-				select.replaceChildren(el('option', { value: '', text: label }), ...values.map((value) => el('option', { value, text: value })));
-				select.value = values.includes(previous) ? previous : '';
+			function go(path) {
+				const target = '#/' + path.split('/').map(encodeURIComponent).join('/');
+				if (location.hash === target) return;
+				location.hash = target;
 			}
 
-			function refreshFilters() {
-				const clients = new Set();
-				const projects = new Set();
-				const envs = new Set();
+			function renderCrumbs() {
+				const segments = state.path.split('/').filter(Boolean);
+				const nodes = [];
+				const add = (label, path, current) => {
+					const button = el('button', { text: label });
+					if (current) button.setAttribute('aria-current', 'page');
+					button.addEventListener('click', () => go(path));
+					nodes.push(button);
+				};
+				add('All files', '', !segments.length);
+				let built = '';
+				segments.forEach((segment, index) => {
+					built += segment + '/';
+					nodes.push(el('span', { class: 'sep', text: '/' }));
+					add(segment, built, index === segments.length - 1);
+				});
+				$('crumbs').replaceChildren(...nodes);
+			}
+
+			/** What the table shows: folders first (unless searching or flat), then files. */
+			function entries() {
+				const terms = $('search').value.toLowerCase().split(/\s+/).filter(Boolean);
+				const flat = $('flat').checked || terms.length > 0;
+				const folders = new Map();
+				const files = [];
+
 				for (const file of state.files) {
-					const parsed = parts(file.key);
-					if (!parsed) {
-						clients.add(file.key.split('/')[0]);
+					if (!file.key.startsWith(state.path)) continue;
+					const rest = file.key.slice(state.path.length);
+					const slash = rest.indexOf('/');
+					if (!flat && slash !== -1) {
+						const name = rest.slice(0, slash);
+						const folder = folders.get(name) || { folder: true, key: name, path: state.path + name + '/', size: 0, count: 0, uploaded: '' };
+						folder.size += file.size;
+						folder.count++;
+						if (file.uploaded > folder.uploaded) folder.uploaded = file.uploaded;
+						folders.set(name, folder);
 						continue;
 					}
-					clients.add(parsed.client);
-					if (!$('client').value || $('client').value === parsed.client) projects.add(parsed.project);
-					envs.add(parsed.env);
+					if (terms.length && !terms.every((term) => rest.toLowerCase().includes(term))) continue;
+					files.push(file);
 				}
-				const sorted = [...clients].sort();
-				fillSelect($('client'), 'All clients', sorted);
-				fillSelect($('project'), 'All projects', [...projects].sort());
-				fillSelect(
-					$('env'),
-					'All environments',
-					[...envs].filter((value) => value === 'prod' || value === 'staging').sort(),
-				);
-				fillSelect($('usage-client'), 'Everything', sorted);
-			}
 
-			function filtered() {
-				const terms = $('search').value.toLowerCase().split(/\s+/).filter(Boolean);
-				const client = $('client').value;
-				const project = $('project').value;
-				const env = $('env').value;
-				const list = state.files.filter((file) => {
-					if (client && !file.key.startsWith(client + '/')) return false;
-					if (project && !file.key.startsWith(project + '/')) return false;
-					if (env && (parts(file.key) || {}).env !== env) return false;
-					const lower = file.key.toLowerCase();
-					return terms.every((term) => lower.includes(term));
-				});
 				const direction = state.descending ? -1 : 1;
 				const field = state.sort;
-				list.sort((a, b) => (a[field] < b[field] ? -1 : a[field] > b[field] ? 1 : 0) * direction);
-				return list;
+				const compare = (a, b) => (a[field] < b[field] ? -1 : a[field] > b[field] ? 1 : 0) * direction;
+				return { folders: [...folders.values()].sort(compare), files: files.sort(compare) };
 			}
 
-			function fileRow(file) {
+			function thumb(file) {
+				const box = el('span', { class: 'thumb' });
+				if (IMAGE.test(file.key) && file.size <= THUMB_MAX) {
+					box.append(el('img', { src: publicUrl(file.key), alt: '', loading: 'lazy', decoding: 'async' }));
+				} else {
+					box.textContent = extension(file.key).slice(0, 4) || 'file';
+				}
+				return box;
+			}
+
+			function folderRow(folder) {
 				const row = el(
 					'tr',
 					{ class: 'row', tabindex: '0' },
-					el('td', { class: 'key', text: file.key }),
+					el('td', { class: 'check' }),
+					el(
+						'td',
+						{},
+						el(
+							'div',
+							{ class: 'entry' },
+							el('span', { class: 'thumb folder', text: '\u{1F4C1}' }),
+							el('span', { class: 'name', text: folder.key }),
+							el('span', { class: 'dim', text: plural(folder.count, 'file') }),
+						),
+					),
+					el('td', { class: 'num', text: bytes(folder.size) }),
+					el('td', { class: 'num hide-narrow', text: when(folder.uploaded) }),
+				);
+				row.addEventListener('click', () => go(folder.path));
+				row.addEventListener('keydown', (event) => {
+					if (event.key === 'Enter') go(folder.path);
+				});
+				return row;
+			}
+
+			function fileRow(file) {
+				const box = el('input', { type: 'checkbox', 'aria-label': 'Select ' + file.key });
+				box.checked = state.selected.has(file.key);
+				box.addEventListener('click', (event) => event.stopPropagation());
+				box.addEventListener('change', () => {
+					if (box.checked) state.selected.add(file.key);
+					else state.selected.delete(file.key);
+					renderBulk();
+				});
+				const row = el(
+					'tr',
+					{ class: 'row', tabindex: '0' },
+					el('td', { class: 'check' }, box),
+					el('td', {}, el('div', { class: 'entry' }, thumb(file), el('span', { class: 'name', text: file.key.slice(state.path.length) }))),
 					el('td', { class: 'num', text: bytes(file.size) }),
 					el('td', { class: 'num hide-narrow', text: when(file.uploaded) }),
 				);
 				row.addEventListener('click', () => openDetail(file));
 				row.addEventListener('keydown', (event) => {
-					if (event.key === 'Enter') openDetail(file);
+					if (event.key === 'Enter' && event.target === row) openDetail(file);
 				});
 				return row;
 			}
 
+			let visibleFiles = [];
+
 			function renderFiles() {
-				const list = filtered();
-				const visible = list.slice(0, state.shown);
-				$('rows').replaceChildren(...visible.map(fileRow));
-				if (!list.length) {
-					$('rows').append(el('tr', {}, el('td', { colspan: '3', class: 'dim', text: state.files.length ? 'No files match.' : 'No files yet.' })));
+				renderCrumbs();
+				const { folders, files } = entries();
+				visibleFiles = files.slice(0, Math.max(0, state.shown - folders.length));
+				$('rows').replaceChildren(...folders.slice(0, state.shown).map(folderRow), ...visibleFiles.map(fileRow));
+				if (!folders.length && !files.length) {
+					const empty = state.files.length ? 'Nothing here matches.' : 'No files yet. Drop some anywhere on this page.';
+					$('rows').append(el('tr', {}, el('td', { colspan: '4', class: 'dim', text: empty })));
 				}
-				$('more').hidden = list.length <= state.shown;
-				let summary = list.length + (list.length === 1 ? ' file' : ' files');
-				if (list.length !== state.files.length) summary += ' of ' + state.files.length;
-				if (state.truncated) summary += '. The bucket is larger than this panel lists, so some files are missing.';
+				$('more').hidden = folders.length + files.length <= state.shown;
+
+				const under = state.files.filter((file) => file.key.startsWith(state.path));
+				const total = under.reduce((sum, file) => sum + file.size, 0);
+				const parts = [];
+				if (folders.length) parts.push(plural(folders.length, 'folder'));
+				parts.push(plural(files.length, 'file'));
+				let summary = parts.join(', ') + ' shown. ' + plural(under.length, 'file') + ' and ' + bytes(total) + ' in total here.';
+				if (state.truncated) summary += ' The bucket is larger than this panel lists, so some files are missing.';
 				$('count').textContent = summary;
+				renderCleanup();
+				renderBulk();
 			}
 
-			function miniRows(target, entries) {
+			/* ---------- Bulk actions ---------- */
+
+			function renderBulk() {
+				const known = new Set(state.files.map((file) => file.key));
+				for (const key of [...state.selected]) if (!known.has(key)) state.selected.delete(key);
+				const count = state.selected.size;
+				$('bulk').hidden = !count;
+				$('bulk-count').textContent = plural(count, 'file') + ' selected';
+				$('bulk-delete').hidden = !state.canDelete;
+				$('bulk-delete').textContent = 'Delete';
+				$('bulk-delete').dataset.armed = '';
+				const shown = visibleFiles.length;
+				const chosen = visibleFiles.filter((file) => state.selected.has(file.key)).length;
+				$('select-all').checked = shown > 0 && chosen === shown;
+				$('select-all').indeterminate = chosen > 0 && chosen < shown;
+			}
+
+			$('select-all').addEventListener('change', (event) => {
+				for (const file of visibleFiles) {
+					if (event.target.checked) state.selected.add(file.key);
+					else state.selected.delete(file.key);
+				}
+				renderFiles();
+			});
+
+			$('bulk-clear').addEventListener('click', () => {
+				state.selected.clear();
+				$('bulk-status').textContent = '';
+				renderFiles();
+			});
+
+			$('bulk-copy').addEventListener('click', async () => {
+				const urls = [...state.selected].sort().map(publicUrl).join('\n');
+				try {
+					await navigator.clipboard.writeText(urls);
+					$('bulk-status').textContent = plural(state.selected.size, 'URL') + ' copied.';
+				} catch {
+					$('bulk-status').textContent = 'Copy was blocked by the browser.';
+				}
+			});
+
+			async function eachSelected(label, work) {
+				const keys = [...state.selected];
+				let done = 0;
+				let failed = 0;
+				for (const key of keys) {
+					$('bulk-status').textContent = label + ' ' + (done + failed + 1) + ' of ' + keys.length;
+					try {
+						await work(key);
+						done++;
+					} catch {
+						failed++;
+					}
+				}
+				return { done, failed };
+			}
+
+			$('bulk-purge').addEventListener('click', async () => {
+				let refused = 0;
+				const result = await eachSelected('Purging', async (key) => {
+					const outcome = await api('purge?key=' + encodeURIComponent(key), { method: 'POST' });
+					if (!outcome.purged) refused++;
+				});
+				const purged = result.done - refused;
+				$('bulk-status').textContent =
+					plural(purged, 'file') + ' purged.' + (refused + result.failed ? ' ' + (refused + result.failed) + ' did not go through.' : '');
+			});
+
+			$('bulk-delete').addEventListener('click', async () => {
+				const button = $('bulk-delete');
+				if (!button.dataset.armed) {
+					button.dataset.armed = '1';
+					button.textContent = 'Click again to delete ' + plural(state.selected.size, 'file');
+					return;
+				}
+				button.disabled = true;
+				const removed = new Set();
+				const result = await eachSelected('Deleting', async (key) => {
+					await api('objects?key=' + encodeURIComponent(key), { method: 'DELETE' });
+					removed.add(key);
+				});
+				state.files = state.files.filter((file) => !removed.has(file.key));
+				button.disabled = false;
+				renderFiles();
+				renderUsage();
+				showError(result.failed ? result.failed + ' could not be deleted.' : '');
+			});
+
+			/* ---------- Usage ---------- */
+
+			function miniRows(target, rows) {
 				target.replaceChildren(
-					...entries.map(([label, value, share]) => {
+					...rows.map(([label, value, share]) => {
 						const cell = el('td', { class: 'key', text: label });
 						if (share !== undefined) {
 							const bar = el('div', { class: 'bar' });
@@ -642,7 +1246,7 @@
 						return el('tr', {}, cell, el('td', { class: 'num', text: value }));
 					}),
 				);
-				if (!entries.length) target.append(el('tr', {}, el('td', { class: 'dim', text: 'Nothing yet.' })));
+				if (!rows.length) target.append(el('tr', {}, el('td', { class: 'dim', text: 'Nothing yet.' })));
 			}
 
 			function renderUsage() {
@@ -675,6 +1279,12 @@
 						.slice(0, 10)
 						.map((file) => [file.key, when(file.uploaded)]),
 				);
+
+				const select = $('usage-client');
+				const previous = select.value;
+				const clients = [...perClient.keys()].sort();
+				select.replaceChildren(el('option', { value: '', text: 'Everything' }), ...clients.map((value) => el('option', { value, text: value })));
+				select.value = clients.includes(previous) ? previous : '';
 			}
 
 			function renderRequests() {
@@ -724,10 +1334,11 @@
 				} catch (error) {
 					showError(error.message);
 				}
-				refreshFilters();
 				renderFiles();
 				renderUsage();
 			}
+
+			/* ---------- One file ---------- */
 
 			function describeCache(value) {
 				if (value && value.includes('immutable')) return 'Never changes (cached for a year)';
@@ -737,6 +1348,31 @@
 			function resetDelete() {
 				$('detail-delete').textContent = 'Delete';
 				$('detail-delete').dataset.armed = '';
+			}
+
+			async function showPreview(file) {
+				const holder = $('detail-preview');
+				const url = publicUrl(file.key);
+				holder.replaceChildren();
+				if (IMAGE.test(file.key)) {
+					holder.append(el('img', { class: 'preview', src: url, alt: '' }));
+				} else if (VIDEO.test(file.key)) {
+					holder.append(el('video', { class: 'preview', src: url, controls: '', preload: 'metadata' }));
+				} else if (AUDIO.test(file.key)) {
+					holder.append(el('audio', { class: 'preview', src: url, controls: '', preload: 'none' }));
+				} else if (TEXT.test(file.key)) {
+					const block = el('pre', { class: 'preview', text: 'Loading preview' });
+					holder.append(block);
+					try {
+						const response = await request('preview?key=' + encodeURIComponent(file.key));
+						if (!response.ok) throw new Error('unavailable');
+						const text = await response.text();
+						if (state.current !== file) return;
+						block.textContent = text + (response.headers.get('X-DXD-Truncated') === 'true' ? '\n\n(preview cut off here)' : '');
+					} catch {
+						block.textContent = 'Preview unavailable.';
+					}
+				}
 			}
 
 			async function openDetail(file) {
@@ -752,12 +1388,13 @@
 				$('detail-requests').textContent = 'Loading';
 				$('detail-last').textContent = '';
 				$('detail-status').textContent = '';
+				$('detail-copy-tag').hidden = !htmlTag(file.key);
+				$('rename-row').hidden = true;
+				$('rename-input').value = file.key;
 				resetDelete();
-				const preview = $('detail-preview');
-				preview.hidden = !IMAGE.test(file.key);
-				if (preview.hidden) preview.removeAttribute('src');
-				else preview.src = url;
 				$('detail').showModal();
+				showPreview(file);
+				loadVersions(file);
 				try {
 					const stats = await api('stats?key=' + encodeURIComponent(file.key));
 					if (state.current !== file) return;
@@ -768,14 +1405,17 @@
 				}
 			}
 
-			$('detail-copy').addEventListener('click', async () => {
+			async function copy(text, done) {
 				try {
-					await navigator.clipboard.writeText(publicUrl(state.current.key));
-					$('detail-status').textContent = 'URL copied.';
+					await navigator.clipboard.writeText(text);
+					$('detail-status').textContent = done;
 				} catch {
-					$('detail-status').textContent = 'Copy failed. Select the URL above instead.';
+					$('detail-status').textContent = 'Copy was blocked by the browser. Select the URL above instead.';
 				}
-			});
+			}
+
+			$('detail-copy').addEventListener('click', () => copy(publicUrl(state.current.key), 'URL copied.'));
+			$('detail-copy-tag').addEventListener('click', () => copy(htmlTag(state.current.key), 'HTML tag copied.'));
 
 			$('detail-purge').addEventListener('click', async () => {
 				$('detail-status').textContent = 'Purging';
@@ -789,11 +1429,44 @@
 				}
 			});
 
+			$('detail-rename').addEventListener('click', () => {
+				$('rename-row').hidden = !$('rename-row').hidden;
+				if (!$('rename-row').hidden) {
+					$('detail-status').textContent = 'The current URL stops working once the file is moved.';
+					$('rename-input').focus();
+				}
+			});
+
+			async function saveRename() {
+				const file = state.current;
+				const to = $('rename-input')
+					.value.trim()
+					.replace(/^\/+|\/+$/g, '');
+				if (!to || to === file.key) return;
+				$('rename-save').disabled = true;
+				try {
+					const result = await api('move?from=' + encodeURIComponent(file.key) + '&to=' + encodeURIComponent(to), { method: 'POST' });
+					state.selected.delete(file.key);
+					file.key = result.key;
+					$('detail').close();
+					renderFiles();
+					renderUsage();
+				} catch (error) {
+					$('detail-status').textContent =
+						error.code === 'EXISTS' ? 'A file already exists at that path.' : error.code === 'INVALID_KEY' ? 'That is not a valid path.' : error.message;
+				}
+				$('rename-save').disabled = false;
+			}
+			$('rename-save').addEventListener('click', saveRename);
+			$('rename-input').addEventListener('keydown', (event) => {
+				if (event.key === 'Enter') saveRename();
+			});
+
 			$('detail-delete').addEventListener('click', async () => {
 				const button = $('detail-delete');
 				if (!button.dataset.armed) {
 					button.dataset.armed = '1';
-					button.textContent = 'Click again to delete for good';
+					button.textContent = 'Click again to delete';
 					return;
 				}
 				const file = state.current;
@@ -802,7 +1475,6 @@
 					await api('objects?key=' + encodeURIComponent(file.key), { method: 'DELETE' });
 					state.files = state.files.filter((entry) => entry !== file);
 					$('detail').close();
-					refreshFilters();
 					renderFiles();
 					renderUsage();
 				} catch (error) {
@@ -811,6 +1483,410 @@
 				}
 				button.disabled = false;
 			});
+
+			async function loadVersions(file) {
+				$('detail-versions').hidden = true;
+				let versions = [];
+				try {
+					versions = (await api('versions?key=' + encodeURIComponent(file.key))).versions;
+				} catch {
+					versions = [];
+				}
+				if (state.current !== file || !versions.length) return;
+				$('version-rows').replaceChildren(
+					...versions.map((version) => {
+						const restore = el('button', { text: 'Restore' });
+						restore.addEventListener('click', async () => {
+							restore.disabled = true;
+							$('detail-status').textContent = 'Restoring';
+							try {
+								await api('restore?key=' + encodeURIComponent(file.key) + '&version=' + version.id, { method: 'POST' });
+								$('detail').close();
+								await loadFiles();
+							} catch (error) {
+								$('detail-status').textContent = error.message;
+								restore.disabled = false;
+							}
+						});
+						return el(
+							'tr',
+							{},
+							el('td', { text: when(version.at) }),
+							el('td', { class: 'dim hide-narrow', text: version.reason + ' by ' + who(version.by) }),
+							el('td', { class: 'num', text: bytes(version.size) }),
+							el('td', { class: 'act' }, restore),
+						);
+					}),
+				);
+				$('detail-versions').hidden = false;
+			}
+
+			/** `admin:someone@example.com` is a person; anything else is an app token. */
+			function who(actor) {
+				if (!actor) return 'unknown';
+				if (actor.startsWith('admin:')) return actor.slice(6);
+				return actor === 'operator' ? 'the operator token' : actor + ' (app token)';
+			}
+
+			/* ---------- Activity ---------- */
+
+			const ACTIONS = {
+				upload: 'Uploaded',
+				replace: 'Replaced',
+				delete: 'Deleted',
+				move: 'Moved',
+				restore: 'Restored',
+				'token-create': 'Created app token',
+				'token-revoke': 'Revoked app token',
+			};
+
+			function activityRow(event) {
+				const file = el('td', { class: 'key' }, el('b', { text: (ACTIONS[event.action] || event.action) + ' ' }), event.key);
+				if (event.to) file.append(el('span', { class: 'dim', text: ' to ' }), event.to);
+				file.append(el('div', { class: 'dim', text: who(event.actor) + ' · ' + when(event.at) }));
+				const action = el('td', { class: 'act' });
+				// Only while the kept copy can still exist, and only for the latest state of the file.
+				const fresh = Date.now() - Date.parse(event.at) < 30 * 86400000;
+				if (event.version && fresh && (event.action === 'delete' || event.action === 'replace')) {
+					const label = event.action === 'delete' ? 'Restore' : 'Undo';
+					const button = el('button', { text: label });
+					button.addEventListener('click', async () => {
+						button.disabled = true;
+						try {
+							await api('restore?key=' + encodeURIComponent(event.key) + '&version=' + event.version, { method: 'POST' });
+							showError('');
+							await Promise.all([loadActivity(true), loadFiles()]);
+						} catch (error) {
+							showError(
+								error.status === 404 ? 'That copy is no longer kept.' : error.code === 'EXISTS' ? 'A file that never changes is at that path now.' : error.message,
+							);
+							button.disabled = false;
+						}
+					});
+					action.append(button);
+				}
+				return el('tr', {}, file, action);
+			}
+
+			async function loadActivity(reset) {
+				if (reset) {
+					state.activity = [];
+					state.activityCursor = null;
+				}
+				try {
+					const page = await api('activity' + (state.activityCursor ? '?cursor=' + encodeURIComponent(state.activityCursor) : ''));
+					state.activity.push(...page.events);
+					state.activityCursor = page.cursor;
+				} catch (error) {
+					showError(error.message);
+				}
+				$('activity-rows').replaceChildren(...state.activity.map(activityRow));
+				if (!state.activity.length) {
+					$('activity-rows').append(el('tr', {}, el('td', { colspan: '2', class: 'dim', text: 'Nothing has changed yet.' })));
+				}
+				$('activity-more').hidden = !state.activityCursor;
+			}
+			$('activity-more').addEventListener('click', () => loadActivity(false));
+
+			/* ---------- Traffic ---------- */
+
+			function compact(value) {
+				if (value >= 1e6) return (value / 1e6).toFixed(value >= 1e7 ? 0 : 1) + 'M';
+				if (value >= 1e3) return (value / 1e3).toFixed(value >= 1e4 ? 0 : 1) + 'k';
+				return String(value);
+			}
+
+			/** A round number at or above `value`, so the top gridline has a clean label. */
+			function niceCeiling(value) {
+				if (value <= 4) return 4;
+				const power = Math.pow(10, Math.floor(Math.log10(value)));
+				for (const step of [1, 2, 4, 5, 8, 10]) if (step * power >= value) return step * power;
+				return 10 * power;
+			}
+
+			function svg(tag, attributes = {}) {
+				const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
+				for (const [name, value] of Object.entries(attributes)) node.setAttribute(name, value);
+				return node;
+			}
+
+			function drawChart(holder, series, hourly) {
+				const width = 960;
+				const height = 240;
+				const left = 44;
+				const bottom = 22;
+				const top = 10;
+				const plotWidth = width - left - 6;
+				const plotHeight = height - top - bottom;
+				const max = niceCeiling(Math.max(...series.map((point) => point.requests)));
+				const slot = plotWidth / series.length;
+				const barWidth = Math.max(2, Math.min(28, slot - 2));
+				const label = (point) =>
+					new Date(point.t).toLocaleString(undefined, hourly ? { weekday: 'short', hour: 'numeric' } : { month: 'short', day: 'numeric' });
+
+				const chart = svg('svg', { viewBox: '0 0 ' + width + ' ' + height, role: 'img' });
+				const total = series.reduce((sum, point) => sum + point.requests, 0);
+				chart.setAttribute('aria-label', 'Requests over time, ' + total.toLocaleString() + ' in total. The tables below list the busiest files.');
+
+				for (let step = 0; step <= 4; step++) {
+					const y = top + plotHeight - (plotHeight * step) / 4;
+					chart.append(svg('line', { class: 'grid-line', x1: left, x2: width - 6, y1: y, y2: y }));
+					const text = svg('text', { x: left - 8, y: y + 4, 'text-anchor': 'end' });
+					text.textContent = compact((max * step) / 4);
+					chart.append(text);
+				}
+
+				const tip = el('div', { class: 'tip' });
+				tip.hidden = true;
+				series.forEach((point, index) => {
+					const x = left + slot * index;
+					const barHeight = point.requests ? Math.max(2, (point.requests / max) * plotHeight) : 0;
+					const hit = svg('rect', { class: 'hit', x, y: top, width: slot, height: plotHeight });
+					chart.append(hit);
+					if (barHeight) {
+						const bx = x + (slot - barWidth) / 2;
+						const by = top + plotHeight - barHeight;
+						const radius = Math.min(4, barWidth / 2, barHeight);
+						// Rounded at the data end only; square where it meets the baseline.
+						const shape =
+							'M' + bx + ',' + (by + barHeight) +
+							' V' + (by + radius) +
+							' Q' + bx + ',' + by + ' ' + (bx + radius) + ',' + by +
+							' H' + (bx + barWidth - radius) +
+							' Q' + (bx + barWidth) + ',' + by + ' ' + (bx + barWidth) + ',' + (by + radius) +
+							' V' + (by + barHeight) + ' Z';
+						const bar = svg('path', { class: 'bar-mark', d: shape, 'pointer-events': 'none' });
+						chart.append(bar);
+					}
+					hit.addEventListener('mouseenter', () => {
+						tip.textContent = label(point) + ': ' + plural(point.requests, 'request') + ', ' + bytes(point.bytes);
+						const box = holder.getBoundingClientRect();
+						const scale = chart.getBoundingClientRect().width / width;
+						const center = (x + slot / 2) * scale + 12;
+						tip.style.left = Math.min(Math.max(center, 90), box.width - 90) + 'px';
+						tip.style.top = (top + plotHeight - barHeight) * scale + 6 + 'px';
+						tip.hidden = false;
+					});
+					hit.addEventListener('mouseleave', () => {
+						tip.hidden = true;
+					});
+				});
+
+				const marks = series.length > 12 ? [0, Math.floor(series.length / 2), series.length - 1] : series.map((_, index) => index);
+				for (const index of marks) {
+					const anchor = index === 0 && series.length > 12 ? 'start' : index === series.length - 1 && series.length > 12 ? 'end' : 'middle';
+					const x = anchor === 'start' ? left : anchor === 'end' ? width - 6 : left + slot * index + slot / 2;
+					const text = svg('text', { x, y: height - 5, 'text-anchor': anchor });
+					text.textContent = label(series[index]);
+					chart.append(text);
+				}
+				holder.replaceChildren(chart, tip);
+			}
+
+			function pathRows(target, rows, empty) {
+				const top = rows.length ? rows[0].requests || 1 : 1;
+				miniRows(
+					target,
+					rows.map((row) => [row.path.replace(/^\//, ''), row.requests.toLocaleString() + (row.bytes ? ' · ' + bytes(row.bytes) : ''), row.requests / top]),
+				);
+				if (!rows.length) target.replaceChildren(el('tr', {}, el('td', { class: 'dim', text: empty })));
+			}
+
+			async function loadTraffic() {
+				$('traffic-status').textContent = 'Loading';
+				let traffic;
+				try {
+					traffic = await api('traffic?range=' + $('traffic-range').value);
+				} catch (error) {
+					$('traffic-status').textContent = error.message;
+					return;
+				}
+				$('traffic-setup').hidden = traffic.connected;
+				$('traffic-range').hidden = !traffic.connected;
+				$('traffic-body').hidden = !traffic.connected || Boolean(traffic.error);
+				$('traffic-status').textContent = traffic.error ? 'Cloudflare analytics refused the request: ' + traffic.error : '';
+				if (!traffic.connected || traffic.error) return;
+
+				const { requests, bytes: sent, cached } = traffic.totals;
+				$('traffic-requests').textContent = requests.toLocaleString();
+				$('traffic-bytes').textContent = bytes(sent);
+				$('traffic-cached').textContent = requests ? Math.round((cached / requests) * 100) + '%' : 'n/a';
+				$('traffic-chart-title').textContent = traffic.hourly ? 'Requests per hour' : 'Requests per day';
+				drawChart($('traffic-chart'), traffic.series, traffic.hourly);
+				pathRows($('traffic-top'), traffic.top, 'No requests in this period.');
+				pathRows($('traffic-missing'), traffic.missing, 'Nothing missing was requested.');
+			}
+			$('traffic-range').addEventListener('change', loadTraffic);
+
+			/* ---------- Clean-up ---------- */
+
+			function cleanupRow(file, served) {
+				const box = el('input', { type: 'checkbox', 'aria-label': 'Select ' + file.key });
+				box.checked = state.selected.has(file.key);
+				box.addEventListener('change', () => {
+					if (box.checked) state.selected.add(file.key);
+					else state.selected.delete(file.key);
+					renderBulk();
+				});
+				return el(
+					'tr',
+					{},
+					el('td', { class: 'check' }, box),
+					el('td', { class: 'key', text: file.key }),
+					el('td', { class: 'num', text: bytes(file.size) }),
+					el('td', { class: 'num hide-narrow', text: when(file.uploaded) }),
+					el('td', { class: 'num hide-narrow', text: served ? when(served) : 'No record' }),
+				);
+			}
+
+			function renderCleanup() {
+				const found = state.unused.filter((entry) => state.files.includes(entry.file));
+				$('cleanup-rows').replaceChildren(...found.slice(0, 500).map((entry) => cleanupRow(entry.file, entry.served)));
+				if (!found.length) {
+					$('cleanup-rows').append(el('tr', {}, el('td', { colspan: '5', class: 'dim', text: 'Nothing unused was found.' })));
+				}
+				$('cleanup-select').hidden = !found.length;
+				return found;
+			}
+
+			async function findUnused() {
+				const days = Number($('cleanup-days').value);
+				$('cleanup-note').textContent = 'Looking';
+				let data;
+				try {
+					data = await api('unused');
+				} catch (error) {
+					$('cleanup-note').textContent = error.message;
+					return;
+				}
+				const cutoff = new Date(Date.now() - days * 86400000).toISOString();
+				const requested = new Set();
+				const edge = data.edge && data.edge.paths ? data.edge : null;
+				if (edge) {
+					for (const path of edge.paths) {
+						let key = path.replace(/^\/+/, '');
+						try {
+							key = decodeURIComponent(key);
+						} catch {
+							/* keep the raw path */
+						}
+						requested.add(key);
+					}
+				}
+				state.unused = state.files
+					.filter((file) => file.uploaded < cutoff && !(data.served[file.key] > cutoff) && !requested.has(file.key))
+					.map((file) => ({ file, served: data.served[file.key] || null }))
+					.sort((a, b) => b.file.size - a.file.size);
+				const found = renderCleanup();
+				const size = found.reduce((sum, entry) => sum + entry.file.size, 0);
+				let note = plural(found.length, 'file') + ' (' + bytes(size) + ') uploaded more than ' + days + ' days ago with no request since.';
+				if (found.length > 500) note += ' Showing the 500 largest.';
+				if (edge) {
+					note += ' Checked against Cloudflare analytics for the last ' + edge.days + ' days and the CDN’s own counters before that.';
+					if (!edge.complete) note += ' Analytics returned its maximum number of paths, so a few rarely requested files may be listed in error.';
+				} else {
+					note +=
+						' Based on the CDN’s own counters, which miss requests answered from the edge cache, so treat this as a list to review. Connect Traffic for an exact check.';
+					if (data.edge && data.edge.error) note += ' (Cloudflare analytics refused the request: ' + data.edge.error + ')';
+				}
+				$('cleanup-note').textContent = note;
+			}
+			$('cleanup-find').addEventListener('click', findUnused);
+			$('cleanup-select').addEventListener('click', () => {
+				for (const entry of state.unused) if (state.files.includes(entry.file)) state.selected.add(entry.file.key);
+				renderCleanup();
+				renderBulk();
+			});
+
+			/* ---------- App tokens ---------- */
+
+			const CAN = { put: 'upload', get: 'read', list: 'list', delete: 'delete' };
+
+			async function loadTokens() {
+				let tokens = [];
+				try {
+					tokens = (await api('tokens')).tokens;
+				} catch (error) {
+					showError(error.message);
+				}
+				$('token-rows').replaceChildren(
+					...tokens.map((token) => {
+						const action = el('td', { class: 'act' });
+						if (token.source === 'panel') {
+							const revoke = el('button', { class: 'danger', text: 'Revoke' });
+							revoke.addEventListener('click', async () => {
+								if (!revoke.dataset.armed) {
+									revoke.dataset.armed = '1';
+									revoke.textContent = 'Click again to revoke';
+									return;
+								}
+								revoke.disabled = true;
+								try {
+									await api('tokens?id=' + token.id, { method: 'DELETE' });
+								} catch (error) {
+									showError(error.message);
+								}
+								loadTokens();
+							});
+							action.append(revoke);
+						} else {
+							action.append(el('span', { class: 'dim', text: 'Set in APP_TOKENS' }));
+						}
+						return el(
+							'tr',
+							{},
+							el('td', { text: token.app }),
+							el('td', {}, ...token.prefixes.map((prefix) => el('span', { class: 'pill', text: prefix }))),
+							el('td', { text: token.ops.map((op) => CAN[op] || op).join(', ') }),
+							el('td', { class: 'dim hide-narrow', text: token.createdAt ? when(token.createdAt) + ' by ' + (token.createdBy || 'unknown') : '' }),
+							action,
+						);
+					}),
+				);
+				if (!tokens.length) {
+					$('token-rows').append(el('tr', {}, el('td', { colspan: '5', class: 'dim', text: 'No app tokens yet.' })));
+				}
+			}
+
+			$('token-create').addEventListener('click', async () => {
+				$('token-error').textContent = '';
+				const body = {
+					app: $('token-app').value.trim(),
+					prefixes: $('token-prefixes')
+						.value.split(',')
+						.map((value) => value.trim())
+						.filter(Boolean),
+					ops: [...document.querySelectorAll('.token-op')].filter((box) => box.checked).map((box) => box.value),
+				};
+				$('token-create').disabled = true;
+				try {
+					const made = await api('tokens', { method: 'POST', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } });
+					$('token-value').textContent = made.token;
+					$('token-copied').textContent = '';
+					$('token-new').hidden = false;
+					$('token-app').value = '';
+					$('token-prefixes').value = '';
+					loadTokens();
+				} catch (error) {
+					$('token-error').textContent = error.message;
+				}
+				$('token-create').disabled = false;
+			});
+			$('token-copy').addEventListener('click', async () => {
+				try {
+					await navigator.clipboard.writeText($('token-value').textContent);
+					$('token-copied').textContent = 'Copied.';
+				} catch {
+					$('token-copied').textContent = 'Copy was blocked by the browser. Select the token instead.';
+				}
+			});
+
+			$('detail').addEventListener('close', () => {
+				state.current = null;
+				$('detail-preview').replaceChildren();
+			});
+
+			/* ---------- Upload ---------- */
 
 			async function send(file, key, item, overwrite) {
 				const status = item.querySelector('.status');
@@ -842,13 +1918,16 @@
 				}
 			}
 
-			async function uploadAll(fileList) {
+			/** @param {Array<{ file: File, path: string }>} items `path` keeps any folder structure. */
+			async function uploadAll(items) {
 				const folder = $('upload-folder')
 					.value.trim()
 					.replace(/^\/+|\/+$/g, '');
 				let any = false;
-				for (const file of fileList) {
-					const key = folder ? folder + '/' + file.name : file.name;
+				for (const { file, path } of items) {
+					// Finder and Explorer litter; never something to publish.
+					if (/(^|\/)(\.DS_Store|Thumbs\.db)$/.test(path)) continue;
+					const key = folder ? folder + '/' + path : path;
 					const item = el('li', {}, el('span', { class: 'name', text: key }), el('span', { class: 'status dim', text: 'Waiting' }));
 					$('queue').append(item);
 					if (await send(file, key, item, false)) any = true;
@@ -856,30 +1935,77 @@
 				if (any) loadFiles();
 			}
 
-			$('open-upload').addEventListener('click', () => {
-				const preset = $('project').value || $('client').value;
-				if (preset && !$('upload-folder').value) $('upload-folder').value = preset + ($('env').value ? '/' + $('env').value : '');
-				$('queue').replaceChildren();
-				$('upload').showModal();
-			});
+			function openUpload() {
+				if (!$('upload').open) {
+					$('upload-folder').value = state.path.replace(/\/$/, '');
+					$('queue').replaceChildren();
+					$('upload').showModal();
+				}
+			}
+
+			/** Files from a drop, walking into any dropped folders. */
+			async function droppedItems(transfer) {
+				const roots = [...transfer.items].map((item) => (item.webkitGetAsEntry ? item.webkitGetAsEntry() : null)).filter(Boolean);
+				if (!roots.length) return [...transfer.files].map((file) => ({ file, path: file.name }));
+
+				const found = [];
+				async function walk(entry, prefix) {
+					if (entry.isFile) {
+						const file = await new Promise((resolve, reject) => entry.file(resolve, reject));
+						found.push({ file, path: prefix + entry.name });
+						return;
+					}
+					const reader = entry.createReader();
+					for (;;) {
+						const batch = await new Promise((resolve, reject) => reader.readEntries(resolve, reject));
+						if (!batch.length) break;
+						for (const child of batch) await walk(child, prefix + entry.name + '/');
+					}
+				}
+				for (const root of roots) await walk(root, '');
+				return found;
+			}
+
+			$('open-upload').addEventListener('click', openUpload);
 			$('pick').addEventListener('click', () => $('file-input').click());
+			$('pick-folder').addEventListener('click', () => $('folder-input').click());
 			$('file-input').addEventListener('change', (event) => {
-				uploadAll([...event.target.files]);
+				uploadAll([...event.target.files].map((file) => ({ file, path: file.name })));
 				event.target.value = '';
 			});
-			const drop = $('drop');
-			for (const name of ['dragenter', 'dragover']) {
-				drop.addEventListener(name, (event) => {
-					event.preventDefault();
-					drop.classList.add('over');
-				});
-			}
-			drop.addEventListener('dragleave', () => drop.classList.remove('over'));
-			drop.addEventListener('drop', (event) => {
-				event.preventDefault();
-				drop.classList.remove('over');
-				uploadAll([...event.dataTransfer.files]);
+			$('folder-input').addEventListener('change', (event) => {
+				uploadAll([...event.target.files].map((file) => ({ file, path: file.webkitRelativePath || file.name })));
+				event.target.value = '';
 			});
+
+			let dragDepth = 0;
+			const hasFiles = (event) => event.dataTransfer && [...event.dataTransfer.types].includes('Files');
+			window.addEventListener('dragenter', (event) => {
+				if (!hasFiles(event)) return;
+				event.preventDefault();
+				dragDepth++;
+				$('overlay').hidden = false;
+			});
+			window.addEventListener('dragover', (event) => {
+				if (hasFiles(event)) event.preventDefault();
+			});
+			window.addEventListener('dragleave', (event) => {
+				if (!hasFiles(event)) return;
+				dragDepth = Math.max(0, dragDepth - 1);
+				if (!dragDepth) $('overlay').hidden = true;
+			});
+			window.addEventListener('drop', async (event) => {
+				if (!hasFiles(event)) return;
+				event.preventDefault();
+				dragDepth = 0;
+				$('overlay').hidden = true;
+				// Read the entries before anything else: the transfer is emptied after this tick.
+				const pending = droppedItems(event.dataTransfer);
+				openUpload();
+				uploadAll(await pending);
+			});
+
+			/* ---------- Wiring ---------- */
 
 			for (const button of document.querySelectorAll('[data-close]')) {
 				button.addEventListener('click', () => button.closest('dialog').close());
@@ -897,11 +2023,10 @@
 				renderFiles();
 			}
 			$('search').addEventListener('input', changed);
-			$('project').addEventListener('change', changed);
-			$('env').addEventListener('change', changed);
-			$('client').addEventListener('change', () => {
-				$('project').value = '';
-				refreshFilters();
+			$('flat').addEventListener('change', changed);
+			window.addEventListener('hashchange', () => {
+				state.path = readPath();
+				$('search').value = '';
 				changed();
 			});
 			$('refresh').addEventListener('click', loadFiles);
@@ -912,19 +2037,33 @@
 			$('usage-load').addEventListener('click', () => loadRequests(true));
 			$('usage-more').addEventListener('click', () => loadRequests(false));
 
+			const TABS = ['files', 'usage', 'traffic', 'activity', 'cleanup', 'tokens'];
 			function show(tab) {
-				for (const name of ['files', 'usage']) {
+				for (const name of TABS) {
 					$('view-' + name).hidden = name !== tab;
 					$('tab-' + name).setAttribute('aria-selected', String(name === tab));
 				}
+				if (tab === 'traffic') loadTraffic();
+				if (tab === 'activity') loadActivity(true);
+				if (tab === 'tokens') {
+					// A token on screen is for one look only.
+					$('token-new').hidden = true;
+					$('token-value').textContent = '';
+					loadTokens();
+				}
+				if (tab === 'cleanup') renderCleanup();
 			}
-			$('tab-files').addEventListener('click', () => show('files'));
-			$('tab-usage').addEventListener('click', () => show('usage'));
+			for (const name of TABS) $('tab-' + name).addEventListener('click', () => show(name));
 
+			state.path = readPath();
 			api('me')
 				.then((me) => {
 					$('who').textContent = me.email;
-					$('detail-delete').hidden = !me.canDelete;
+					state.canDelete = Boolean(me.canDelete);
+					$('detail-delete').hidden = !state.canDelete;
+					$('detail-rename').hidden = !state.canDelete;
+					$('tab-tokens').hidden = !state.canDelete;
+					renderBulk();
 				})
 				.catch(() => {});
 			loadFiles();

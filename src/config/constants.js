@@ -70,6 +70,15 @@ export const RESERVED_KEY_PREFIXES = ['api/', 'admin/', '_cdn/', 'analytics/'];
 /** Where request counters live. Under a reserved prefix, so it is not tenant-writable. */
 export const ANALYTICS_KEY_PREFIX = '_cdn/analytics/';
 
+/** Previous copies of replaced and deleted objects: `<prefix><key>?<version id>`. */
+export const VERSIONS_KEY_PREFIX = '_cdn/versions/';
+
+/** One empty object per logged change, newest first; the event is its custom metadata. */
+export const ACTIVITY_KEY_PREFIX = '_cdn/activity/';
+
+/** App tokens made in the admin panel: `<prefix><sha256(token)>.json` holding the scope. */
+export const TOKENS_KEY_PREFIX = '_cdn/tokens/';
+
 /** Pre-`_cdn/` analytics location, still read so existing counters are not lost. */
 export const LEGACY_ANALYTICS_KEY_PREFIX = 'analytics/';
 

@@ -22,6 +22,7 @@ import { handleMp4Stream } from './handlers/streaming.js';
 import { PUBLIC_READ_METHODS, isGitHubProxyPath, legacyGitHubProxyPathname, parseGitHubProxyPath } from './routing.js';
 import { CdnObjects } from './services/cdn-objects.js';
 import { getLatestRelease } from './services/github.js';
+import { pruneHistory } from './services/history.js';
 import { isReservedKey } from './services/objects.js';
 import { handleSpecialPages } from './templates/pages.js';
 import { applyPublicCacheHeaders, cacheHeadersForObject, liveEdgeMaxAge, notModifiedResponse } from './utils/cache.js';
@@ -32,6 +33,11 @@ import { failedOnlyIfStatus, getR2Object, hasR2Body, headR2Object } from './util
 export { CdnObjects };
 
 export default {
+	/** Nightly: expire kept versions and old activity (the cron in wrangler.toml). */
+	async scheduled(_controller, env, ctx) {
+		ctx.waitUntil(pruneHistory(env));
+	},
+
 	async fetch(request, env, ctx) {
 		try {
 			const url = new URL(request.url);
@@ -278,8 +284,13 @@ async function handleDirectR2Request(request, env, ctx, url, path) {
 	const notModified = notModifiedResponse(request, object.httpEtag, headers);
 	if (notModified) return notModified;
 
-	// waitUntil, or the counter write is cancelled when the response finishes.
-	ctx.waitUntil(trackFileRequest(env.CDN_BUCKET, key));
+	// Thumbnails and previews in the admin panel are same-origin fetches; a real
+	// embed on someone's site never is. Leaving them out keeps the clean-up view
+	// from treating a file as used because somebody looked at it in the panel.
+	if (request.headers.get('Sec-Fetch-Site') !== 'same-origin') {
+		// waitUntil, or the counter write is cancelled when the response finishes.
+		ctx.waitUntil(trackFileRequest(env.CDN_BUCKET, key));
+	}
 
 	return new Response(object.body, { headers });
 }
