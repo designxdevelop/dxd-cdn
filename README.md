@@ -5,8 +5,8 @@ A hybrid CDN using Cloudflare Workers and R2 storage. Supports file upload/brows
 ## Features
 
 ### File Management
-- 📤 Web-based file upload with password protection
-- 📂 File browser with fuzzy search and filters (client/project/env)
+- 🔐 Admin panel at `/admin` behind Cloudflare Access: browse, search, upload, replace, purge, delete, usage
+- 📂 Filters by client/project/env
 - 📊 File analytics tracking (request count, first/last served)
 - 🗑️ File deletion via API
 - 🎬 MP4 streaming with range request support
@@ -35,7 +35,7 @@ src/
     constants.js        # Content types, preview types, GitHub config, cache policies
   handlers/
     api.js              # /api/files, /api/file-stats, …
-    browse.js           # File browser UI
+    admin.js            # /admin panel and /admin/api/* (Cloudflare Access)
     objects-api.js      # PUT|GET /api/objects (HTTP adapter)
     responses.js        # R2 and GitHub response handling
     streaming.js        # MP4 streaming support
@@ -123,124 +123,21 @@ npm run deploy
 
 ## Usage
 
-### File Upload
+### Admin panel
 
-Visit `https://your-domain.com/upload` to:
-- Upload files with password authentication
-- Specify upload path (client/project/env structure recommended)
-- Auto-generates unique filenames if conflicts exist
+Visit `https://your-domain.com/admin` and sign in through Cloudflare Access to:
+- Browse, search and filter every uploaded file, with size, upload time and request counts
+- Upload by drag and drop into a folder (client/project/env structure recommended); an existing file is only replaced when you say so
+- Copy URLs, purge one file's edge copy, and (owners only) delete
+- See storage per client, the largest and newest files, and request counts
+
+There is no password: the signed-in person is the credential, and the browser
+never holds a bucket token. Setup and the security model are in
+[docs/admin-panel.md](docs/admin-panel.md). `/browse` and `/upload` redirect here.
 
 Upload paths go through the same key rules as the Objects API, so traversal
 (`../../escaped`) and the reserved prefixes below are rejected rather than stored
 as literal keys.
-
-### File Browser
-
-Visit `https://your-domain.com/browse` to:
-- Browse all uploaded files
-- Search with fuzzy matching
-- Filter by client, project, or environment
-- View file analytics
-- Delete files
-- Copy CDN URLs
-
-### Direct File Access
-
-```
-https://your-domain.com/[client]/[project]/[env]/[filename]
-```
-
-Example:
-```
-https://your-domain.com/acme/website/prod/hero-image.webp
-```
-
-Query parameters:
-- `?download=true` - Force download instead of inline display
-
-Public object paths answer `GET` and `HEAD`; any other method is `405`. Writes go
-through the Objects API.
-
-Public GET honors the object's stored `Cache-Control`. Unchanged files return `304` on `If-None-Match` or `If-Modified-Since`.
-
-### Objects API
-
-Programmatic publish/pull/manage for Studio, Heard, client Workers, and CI. Prefer this over rclone so each object gets a `Cache-Control`.
-
-| Method | Path | Op needed |
-|--------|------|-----------|
-| `PUT` | `/api/objects` | `put` |
-| `GET` | `/api/objects?key=&as=meta\|body` | `get` |
-| `HEAD` | `/api/objects?key=` | `get` |
-| `DELETE` | `/api/objects?key=` | `delete` |
-| `GET` | `/api/objects/list?prefix=&cursor=&limit=&delimiter=` | `list` |
-
-```
-PUT /api/objects
-Authorization: Bearer <app token or UPLOAD_PASSWORD>
-X-DXD-Object-Key: heard/hp/prod/personalization.js
-X-DXD-Cache-Control: public, max-age=0, must-revalidate   # omit for this default
-```
-
-#### Scoped app tokens
-
-Each app gets its own token limited to its own key prefixes, so one app cannot
-overwrite or delete another's files. Tokens live in a single `APP_TOKENS` secret
-as a JSON object keyed by `sha256(token)`:
-
-```jsonc
-{
-  "<sha256(token)>": { "app": "heard", "prefixes": ["heard/"], "ops": ["put", "get"] }
-}
-```
-
-```bash
-node scripts/mint-app-token.mjs --app heard --prefixes heard/ --ops put,get
-```
-
-`UPLOAD_PASSWORD` remains the operator token (every op, whole bucket) and is the
-only credential the `/browse`, `/upload`, and `/api/file*` routes accept. Unknown
-token → `401`; known token reaching outside its scope → `403`. Full format and
-semantics: [docs/api-objects.md](docs/api-objects.md#scoped-app-tokens).
-
-`X-DXD-Cache-Control` allowlists two values (anything else is 400):
-
-| Use | Value |
-| --- | --- |
-| Live pointer (`config.json`, `personalization.js`, `/upload`) | `public, max-age=0, must-revalidate` (PUT default) |
-| Hashed / versioned snapshot | `public, max-age=31536000, immutable` |
-
-Shared client: `packages/client` (`@dxd/cdn`) — `putObject`, `publishHashedAsset` (snapshot **then** live), `publishVersioned`. Same-account Workers can bind `CdnObjects` instead of sending the password over HTTP; that binding can write **any** key in the bucket.
-
-Headers and Worker recipe: [docs/api-objects.md](docs/api-objects.md), [docs/connect-a-worker.md](docs/connect-a-worker.md).
-
-### GitHub Proxy (Legacy)
-
-```
-https://your-domain.com/gh/[repo-name]/[version]/[file-path]
-```
-
-Where `version` can be:
-- A release tag: `v1.0.0`
-- A commit hash: `a1b2c3d`
-- Latest release: `latest`
-
-Examples:
-```
-# Specific version
-https://your-domain.com/gh/my-project/v1.0.0/dist/script.js
-
-# Minified version (add .min before extension)
-https://your-domain.com/gh/my-project/v1.0.0/dist/script.min.js
-
-# Latest release
-https://your-domain.com/gh/my-project/latest/dist/script.js
-```
-
-The proxy used to live at the unprefixed `/[repo]/[version]/[file-path]`, which
-collided with object keys such as `myapp/v1.2.3/bundle.js`. Those old URLs now
-`301` to the `/gh/` form **only when no object exists at that key**, so an
-uploaded object always wins and keeps its stored `Cache-Control`.
 
 ### URL Converter Tool
 
@@ -253,7 +150,7 @@ Visit `https://your-domain.com/convert` for a web interface to:
 
 ## API Endpoints
 
-The `/api/objects` routes take a scoped app token or `UPLOAD_PASSWORD`, as either `Authorization: Bearer <token>` or `?password=`. Every other route is operator-only and accepts `?password=<UPLOAD_PASSWORD>` alone. JSON APIs send `Cache-Control: no-store`.
+The `/api/objects` routes take a scoped app token or `UPLOAD_PASSWORD` as `Authorization: Bearer <token>`. Every other `/api/` route is operator-only and takes `Authorization: Bearer <UPLOAD_PASSWORD>`. Tokens are never read from the URL (`?password=` is not accepted). `/admin/api/*` belongs to the admin panel and takes a Cloudflare Access sign-in instead of a token. JSON APIs send `Cache-Control: no-store`.
 
 | Endpoint | Method | Auth | Description |
 |----------|--------|------|-------------|
@@ -265,7 +162,7 @@ The `/api/objects` routes take a scoped app token or `UPLOAD_PASSWORD`, as eithe
 | `/api/files` | GET | Operator | List files with optional search/filter |
 | `/api/file-stats` | GET | Operator | Get analytics for a specific file |
 | `/api/file-content` | GET | Operator | Get HTML file content |
-| `/api/delete-file` | DELETE | Operator | Delete a file |
+| `/api/delete-file` | DELETE | Operator | Delete a file, its counters and its edge copy |
 
 ### Query Parameters
 
@@ -312,7 +209,10 @@ unless you override `ORIGIN`.
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `UPLOAD_PASSWORD` | Yes | Operator token: upload/browse/API access, whole bucket |
+| `UPLOAD_PASSWORD` | Yes | Operator token for the HTTP APIs, whole bucket. Not used by `/admin` |
+| `ACCESS_TEAM_DOMAIN` | For `/admin` | Cloudflare Access team domain, e.g. `your-team.cloudflareaccess.com` |
+| `ACCESS_AUD` | For `/admin` | Audience (AUD) tag of the Access application covering `/admin` |
+| `ADMIN_OWNERS` | No | Comma-separated emails allowed to delete from the panel |
 | `APP_TOKENS` | No | JSON of scoped per-app tokens keyed by `sha256(token)`. Without it, only the operator token works |
 | `GITHUB_TOKEN` | For GitHub proxy | GitHub Personal Access Token |
 | `ENVIRONMENT` | No | Set to "production" in prod |

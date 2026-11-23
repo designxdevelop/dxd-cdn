@@ -30,12 +30,12 @@ function requestWith(headers = {}, search = '') {
 }
 
 describe('presentedToken', () => {
-	test('reads Bearer and ?password=', () => {
+	test('reads Bearer and ignores ?password=', () => {
 		const bearer = requestWith({ Authorization: 'Bearer abc' });
 		expect(presentedToken(bearer.request, bearer.url)).toBe('abc');
 
 		const query = requestWith({}, '?password=xyz');
-		expect(presentedToken(query.request, query.url)).toBe('xyz');
+		expect(presentedToken(query.request, query.url)).toBe('');
 
 		const neither = requestWith();
 		expect(presentedToken(neither.request, neither.url)).toBe('');
@@ -91,13 +91,13 @@ describe('scopeForToken', () => {
 });
 
 describe('resolveScope', () => {
-	test('accepts the token from either transport', async () => {
+	test('accepts the token from the header only', async () => {
 		const env = await envWithTokens();
 		const bearer = requestWith({ Authorization: `Bearer ${HEARD_TOKEN}` });
 		const query = requestWith({}, `?password=${HEARD_TOKEN}`);
 
 		expect(await resolveScope(bearer.request, bearer.url, env)).toMatchObject({ app: 'heard' });
-		expect(await resolveScope(query.request, query.url, env)).toMatchObject({ app: 'heard' });
+		expect(await resolveScope(query.request, query.url, env)).toBeNull();
 	});
 });
 

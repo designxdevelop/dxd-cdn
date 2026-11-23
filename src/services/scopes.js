@@ -58,15 +58,15 @@ function digestsMatch(a, b) {
 }
 
 /**
- * `Authorization: Bearer <token>` or `?password=<token>`.
+ * `Authorization: Bearer <token>`. The header is the only transport: a token in
+ * the query string is recorded in browser history, proxies and request logs.
  * @param {Request} request
- * @param {URL} url
  * @returns {string}
  */
-export function presentedToken(request, url) {
+export function presentedToken(request) {
 	const header = request.headers.get('Authorization') || '';
 	if (header.startsWith('Bearer ')) return header.slice(7).trim();
-	return url.searchParams.get('password') || '';
+	return '';
 }
 
 /**
@@ -135,12 +135,12 @@ export async function scopeForToken(env, token) {
 
 /**
  * @param {Request} request
- * @param {URL} url
+ * @param {URL} _url Unused; kept so call sites need not change.
  * @param {Object} env
  * @returns {Promise<Scope|null>}
  */
-export async function resolveScope(request, url, env) {
-	return scopeForToken(env, presentedToken(request, url));
+export async function resolveScope(request, _url, env) {
+	return scopeForToken(env, presentedToken(request));
 }
 
 /**

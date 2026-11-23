@@ -1,0 +1,933 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="robots" content="noindex" />
+		<title>DXD CDN Admin</title>
+		<style nonce="{{NONCE}}">
+			:root {
+				color-scheme: light dark;
+				--bg: #f6f6f4;
+				--panel: #ffffff;
+				--line: #e3e2de;
+				--text: #1c1c1a;
+				--muted: #6b6a66;
+				--accent: #2f5bea;
+				--accent-text: #ffffff;
+				--danger: #c0392b;
+				--ok: #1e7d4a;
+				--hover: #f0efec;
+			}
+			@media (prefers-color-scheme: dark) {
+				:root {
+					--bg: #141413;
+					--panel: #1d1d1b;
+					--line: #32312e;
+					--text: #ecebe7;
+					--muted: #9a9993;
+					--accent: #7c9bff;
+					--accent-text: #10131f;
+					--danger: #ff7b6b;
+					--ok: #5fd08f;
+					--hover: #262624;
+				}
+			}
+			* {
+				box-sizing: border-box;
+			}
+			body {
+				margin: 0;
+				background: var(--bg);
+				color: var(--text);
+				font: 14px/1.45 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+			}
+			header {
+				display: flex;
+				align-items: center;
+				gap: 16px;
+				padding: 12px 20px;
+				background: var(--panel);
+				border-bottom: 1px solid var(--line);
+				flex-wrap: wrap;
+			}
+			header h1 {
+				font-size: 15px;
+				margin: 0;
+				letter-spacing: 0.02em;
+			}
+			nav {
+				display: flex;
+				gap: 4px;
+			}
+			.who {
+				margin-left: auto;
+				color: var(--muted);
+				display: flex;
+				gap: 12px;
+				align-items: center;
+			}
+			a {
+				color: var(--accent);
+			}
+			button,
+			select,
+			input {
+				font: inherit;
+				color: inherit;
+			}
+			button {
+				background: var(--panel);
+				border: 1px solid var(--line);
+				border-radius: 6px;
+				padding: 6px 12px;
+				cursor: pointer;
+			}
+			button:hover {
+				background: var(--hover);
+			}
+			button:disabled {
+				opacity: 0.5;
+				cursor: default;
+			}
+			button.primary {
+				background: var(--accent);
+				border-color: var(--accent);
+				color: var(--accent-text);
+			}
+			button.danger {
+				color: var(--danger);
+			}
+			button.tab {
+				border-color: transparent;
+				background: none;
+			}
+			button.tab[aria-selected='true'] {
+				background: var(--hover);
+				font-weight: 600;
+			}
+			input[type='search'],
+			input[type='text'],
+			select {
+				background: var(--panel);
+				border: 1px solid var(--line);
+				border-radius: 6px;
+				padding: 6px 10px;
+				min-width: 0;
+			}
+			:focus-visible {
+				outline: 2px solid var(--accent);
+				outline-offset: 1px;
+			}
+			main {
+				padding: 16px 20px 60px;
+				max-width: 1200px;
+				margin: 0 auto;
+			}
+			.toolbar {
+				display: flex;
+				gap: 8px;
+				flex-wrap: wrap;
+				margin-bottom: 12px;
+			}
+			.toolbar input[type='search'] {
+				flex: 1 1 220px;
+			}
+			.note {
+				color: var(--muted);
+				margin: 8px 0;
+			}
+			.banner {
+				border: 1px solid var(--danger);
+				color: var(--danger);
+				border-radius: 6px;
+				padding: 8px 12px;
+				margin-bottom: 12px;
+			}
+			.card {
+				background: var(--panel);
+				border: 1px solid var(--line);
+				border-radius: 8px;
+				overflow: hidden;
+			}
+			table {
+				width: 100%;
+				border-collapse: collapse;
+			}
+			th,
+			td {
+				text-align: left;
+				padding: 8px 12px;
+				border-bottom: 1px solid var(--line);
+				vertical-align: top;
+			}
+			th {
+				font-weight: 600;
+				color: var(--muted);
+				font-size: 12px;
+				white-space: nowrap;
+			}
+			th button {
+				border: 0;
+				padding: 0;
+				background: none;
+				color: inherit;
+				font-weight: inherit;
+			}
+			tr:last-child td {
+				border-bottom: 0;
+			}
+			tbody tr.row {
+				cursor: pointer;
+			}
+			tbody tr.row:hover {
+				background: var(--hover);
+			}
+			td.key {
+				word-break: break-all;
+			}
+			td.num,
+			th.num {
+				text-align: right;
+				white-space: nowrap;
+				font-variant-numeric: tabular-nums;
+			}
+			.dim {
+				color: var(--muted);
+			}
+			.grid {
+				display: grid;
+				grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+				gap: 16px;
+			}
+			#requests-card {
+				margin-top: 16px;
+			}
+			.card h2 {
+				font-size: 13px;
+				margin: 0;
+				padding: 10px 12px;
+				border-bottom: 1px solid var(--line);
+			}
+			.stat {
+				padding: 12px;
+				display: flex;
+				gap: 28px;
+			}
+			.stat b {
+				display: block;
+				font-size: 22px;
+			}
+			.bar {
+				height: 6px;
+				border-radius: 3px;
+				background: var(--accent);
+				margin-top: 4px;
+				min-width: 2px;
+			}
+			dialog {
+				border: 1px solid var(--line);
+				border-radius: 10px;
+				background: var(--panel);
+				color: var(--text);
+				padding: 0;
+				width: min(640px, calc(100vw - 32px));
+			}
+			dialog::backdrop {
+				background: rgba(0, 0, 0, 0.45);
+			}
+			.dialog-head {
+				display: flex;
+				align-items: center;
+				padding: 12px 16px;
+				border-bottom: 1px solid var(--line);
+			}
+			.dialog-head h2 {
+				font-size: 14px;
+				margin: 0;
+				flex: 1;
+				word-break: break-all;
+			}
+			.dialog-body {
+				padding: 16px;
+				display: grid;
+				gap: 12px;
+			}
+			.dialog-foot {
+				display: flex;
+				gap: 8px;
+				flex-wrap: wrap;
+				padding: 12px 16px;
+				border-top: 1px solid var(--line);
+			}
+			.spacer {
+				flex: 1;
+			}
+			dl {
+				display: grid;
+				grid-template-columns: max-content 1fr;
+				gap: 6px 16px;
+				margin: 0;
+			}
+			dt {
+				color: var(--muted);
+			}
+			dd {
+				margin: 0;
+				word-break: break-all;
+			}
+			.preview {
+				max-width: 100%;
+				max-height: 220px;
+				border: 1px solid var(--line);
+				border-radius: 6px;
+				justify-self: start;
+			}
+			label.field {
+				display: grid;
+				gap: 4px;
+			}
+			.drop {
+				border: 2px dashed var(--line);
+				border-radius: 8px;
+				padding: 22px;
+				text-align: center;
+				color: var(--muted);
+			}
+			.drop.over {
+				border-color: var(--accent);
+				color: var(--text);
+			}
+			ul.queue {
+				list-style: none;
+				margin: 0;
+				padding: 0;
+				display: grid;
+				gap: 6px;
+			}
+			ul.queue li {
+				display: flex;
+				gap: 8px;
+				align-items: center;
+			}
+			ul.queue .name {
+				flex: 1;
+				word-break: break-all;
+			}
+			.good {
+				color: var(--ok);
+			}
+			.bad {
+				color: var(--danger);
+			}
+			[hidden] {
+				display: none !important;
+			}
+			@media (max-width: 640px) {
+				.hide-narrow {
+					display: none;
+				}
+			}
+		</style>
+	</head>
+	<body>
+		<header>
+			<h1>DXD CDN</h1>
+			<nav role="tablist">
+				<button class="tab" role="tab" id="tab-files" aria-selected="true">Files</button>
+				<button class="tab" role="tab" id="tab-usage" aria-selected="false">Usage</button>
+			</nav>
+			<div class="who"><span id="who"></span><a href="/cdn-cgi/access/logout">Sign out</a></div>
+		</header>
+
+		<main>
+			<div class="banner" id="error" hidden></div>
+
+			<section id="view-files">
+				<div class="toolbar">
+					<input type="search" id="search" placeholder="Search files" aria-label="Search files" />
+					<select id="client" aria-label="Client"></select>
+					<select id="project" aria-label="Project"></select>
+					<select id="env" aria-label="Environment"></select>
+					<button id="refresh">Refresh</button>
+					<button class="primary" id="open-upload">Upload</button>
+				</div>
+				<p class="note" id="count"></p>
+				<div class="card">
+					<table>
+						<thead>
+							<tr>
+								<th><button data-sort="key">File</button></th>
+								<th class="num"><button data-sort="size">Size</button></th>
+								<th class="num hide-narrow"><button data-sort="uploaded">Uploaded</button></th>
+							</tr>
+						</thead>
+						<tbody id="rows"></tbody>
+					</table>
+				</div>
+				<p class="note"><button id="more" hidden>Show more</button></p>
+			</section>
+
+			<section id="view-usage" hidden>
+				<div class="grid">
+					<div class="card">
+						<h2>Storage</h2>
+						<div class="stat">
+							<div><b id="total-files">0</b><span class="dim">files</span></div>
+							<div><b id="total-size">0</b><span class="dim">stored</span></div>
+						</div>
+					</div>
+					<div class="card">
+						<h2>Storage by client</h2>
+						<table>
+							<tbody id="by-client"></tbody>
+						</table>
+					</div>
+					<div class="card">
+						<h2>Largest files</h2>
+						<table>
+							<tbody id="largest"></tbody>
+						</table>
+					</div>
+					<div class="card">
+						<h2>Recently uploaded</h2>
+						<table>
+							<tbody id="recent"></tbody>
+						</table>
+					</div>
+				</div>
+				<div class="card" id="requests-card">
+					<h2>Requests served</h2>
+					<div class="dialog-body">
+						<div class="toolbar">
+							<select id="usage-client" aria-label="Client for request counts"></select>
+							<button id="usage-load">Load request counts</button>
+							<button id="usage-more" hidden>Load more</button>
+						</div>
+						<p class="note">
+							Counts are approximate. Requests answered from Cloudflare's edge cache never reach the Worker and are not counted.
+						</p>
+					</div>
+					<table>
+						<thead>
+							<tr>
+								<th>File</th>
+								<th class="num">Requests</th>
+								<th class="num hide-narrow">Last served</th>
+							</tr>
+						</thead>
+						<tbody id="usage-rows"></tbody>
+					</table>
+				</div>
+			</section>
+		</main>
+
+		<dialog id="detail">
+			<div class="dialog-head">
+				<h2 id="detail-key"></h2>
+				<button data-close>Close</button>
+			</div>
+			<div class="dialog-body">
+				<img class="preview" id="detail-preview" alt="" hidden />
+				<dl>
+					<dt>URL</dt>
+					<dd><a id="detail-url" target="_blank" rel="noopener noreferrer"></a></dd>
+					<dt>Size</dt>
+					<dd id="detail-size"></dd>
+					<dt>Type</dt>
+					<dd id="detail-type"></dd>
+					<dt>Uploaded</dt>
+					<dd id="detail-uploaded"></dd>
+					<dt>Caching</dt>
+					<dd id="detail-cache"></dd>
+					<dt>Requests</dt>
+					<dd id="detail-requests">Loading</dd>
+					<dt>Last served</dt>
+					<dd id="detail-last"></dd>
+				</dl>
+				<p class="note" id="detail-status" role="status"></p>
+			</div>
+			<div class="dialog-foot">
+				<button id="detail-copy">Copy URL</button>
+				<button id="detail-purge">Purge cache</button>
+				<span class="spacer"></span>
+				<button class="danger" id="detail-delete" hidden>Delete</button>
+			</div>
+		</dialog>
+
+		<dialog id="upload">
+			<div class="dialog-head">
+				<h2>Upload files</h2>
+				<button data-close>Close</button>
+			</div>
+			<div class="dialog-body">
+				<label class="field">
+					Folder
+					<input type="text" id="upload-folder" placeholder="client/project/prod" autocomplete="off" spellcheck="false" />
+				</label>
+				<label>
+					<input type="checkbox" id="upload-immutable" />
+					Never changes (hashed or versioned file, cached for a year, cannot be replaced)
+				</label>
+				<div class="drop" id="drop">
+					Drop files here or
+					<button id="pick">Choose files</button>
+					<input type="file" id="file-input" multiple hidden />
+				</div>
+				<ul class="queue" id="queue"></ul>
+			</div>
+		</dialog>
+
+		<script nonce="{{NONCE}}">
+			'use strict';
+			const $ = (id) => document.getElementById(id);
+			const PAGE = 300;
+			const IMAGE = /\.(png|jpe?g|gif|webp|svg)$/i;
+			const state = { files: [], truncated: false, sort: 'key', descending: false, shown: PAGE, current: null, usage: [], usageCursor: null };
+
+			function el(tag, props = {}, ...children) {
+				const node = document.createElement(tag);
+				for (const [name, value] of Object.entries(props)) {
+					if (name === 'class') node.className = value;
+					else if (name === 'text') node.textContent = value;
+					else node.setAttribute(name, value);
+				}
+				node.append(...children);
+				return node;
+			}
+
+			function bytes(size) {
+				if (size < 1024) return size + ' B';
+				const units = ['KB', 'MB', 'GB', 'TB'];
+				let value = size;
+				let unit = -1;
+				do {
+					value /= 1024;
+					unit++;
+				} while (value >= 1024 && unit < units.length - 1);
+				return value.toFixed(value < 10 ? 1 : 0) + ' ' + units[unit];
+			}
+
+			function when(iso) {
+				if (!iso) return 'Never';
+				const date = new Date(iso);
+				return Number.isNaN(date.getTime()) ? 'Unknown' : date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+			}
+
+			function publicUrl(key) {
+				return location.origin + '/' + key.split('/').map(encodeURIComponent).join('/');
+			}
+
+			function showError(message) {
+				$('error').textContent = message;
+				$('error').hidden = !message;
+			}
+
+			async function api(path, options = {}) {
+				const headers = new Headers(options.headers || {});
+				if (options.method && options.method !== 'GET') headers.set('X-DXD-Admin', '1');
+				const response = await fetch('/admin/api/' + path, { ...options, headers, credentials: 'same-origin', redirect: 'manual' });
+				// Access answers an expired session with a redirect to its sign-in page.
+				if (response.type === 'opaqueredirect' || response.status === 401) {
+					throw new Error('Your sign-in has expired. Reload the page to sign in again.');
+				}
+				let body = null;
+				try {
+					body = await response.json();
+				} catch {
+					body = null;
+				}
+				if (!response.ok) {
+					const error = new Error((body && body.error) || 'Request failed (' + response.status + ')');
+					error.status = response.status;
+					error.code = body && body.code;
+					throw error;
+				}
+				return body;
+			}
+
+			function parts(key) {
+				const segments = key.split('/');
+				if (segments.length < 4) return null;
+				return { client: segments[0], project: segments[0] + '/' + segments[1], env: segments[2] };
+			}
+
+			function fillSelect(select, label, values) {
+				const previous = select.value;
+				select.replaceChildren(el('option', { value: '', text: label }), ...values.map((value) => el('option', { value, text: value })));
+				select.value = values.includes(previous) ? previous : '';
+			}
+
+			function refreshFilters() {
+				const clients = new Set();
+				const projects = new Set();
+				const envs = new Set();
+				for (const file of state.files) {
+					const parsed = parts(file.key);
+					if (!parsed) {
+						clients.add(file.key.split('/')[0]);
+						continue;
+					}
+					clients.add(parsed.client);
+					if (!$('client').value || $('client').value === parsed.client) projects.add(parsed.project);
+					envs.add(parsed.env);
+				}
+				const sorted = [...clients].sort();
+				fillSelect($('client'), 'All clients', sorted);
+				fillSelect($('project'), 'All projects', [...projects].sort());
+				fillSelect(
+					$('env'),
+					'All environments',
+					[...envs].filter((value) => value === 'prod' || value === 'staging').sort(),
+				);
+				fillSelect($('usage-client'), 'Everything', sorted);
+			}
+
+			function filtered() {
+				const terms = $('search').value.toLowerCase().split(/\s+/).filter(Boolean);
+				const client = $('client').value;
+				const project = $('project').value;
+				const env = $('env').value;
+				const list = state.files.filter((file) => {
+					if (client && !file.key.startsWith(client + '/')) return false;
+					if (project && !file.key.startsWith(project + '/')) return false;
+					if (env && (parts(file.key) || {}).env !== env) return false;
+					const lower = file.key.toLowerCase();
+					return terms.every((term) => lower.includes(term));
+				});
+				const direction = state.descending ? -1 : 1;
+				const field = state.sort;
+				list.sort((a, b) => (a[field] < b[field] ? -1 : a[field] > b[field] ? 1 : 0) * direction);
+				return list;
+			}
+
+			function fileRow(file) {
+				const row = el(
+					'tr',
+					{ class: 'row', tabindex: '0' },
+					el('td', { class: 'key', text: file.key }),
+					el('td', { class: 'num', text: bytes(file.size) }),
+					el('td', { class: 'num hide-narrow', text: when(file.uploaded) }),
+				);
+				row.addEventListener('click', () => openDetail(file));
+				row.addEventListener('keydown', (event) => {
+					if (event.key === 'Enter') openDetail(file);
+				});
+				return row;
+			}
+
+			function renderFiles() {
+				const list = filtered();
+				const visible = list.slice(0, state.shown);
+				$('rows').replaceChildren(...visible.map(fileRow));
+				if (!list.length) {
+					$('rows').append(el('tr', {}, el('td', { colspan: '3', class: 'dim', text: state.files.length ? 'No files match.' : 'No files yet.' })));
+				}
+				$('more').hidden = list.length <= state.shown;
+				let summary = list.length + (list.length === 1 ? ' file' : ' files');
+				if (list.length !== state.files.length) summary += ' of ' + state.files.length;
+				if (state.truncated) summary += '. The bucket is larger than this panel lists, so some files are missing.';
+				$('count').textContent = summary;
+			}
+
+			function miniRows(target, entries) {
+				target.replaceChildren(
+					...entries.map(([label, value, share]) => {
+						const cell = el('td', { class: 'key', text: label });
+						if (share !== undefined) {
+							const bar = el('div', { class: 'bar' });
+							bar.style.width = Math.max(1, Math.round(share * 100)) + '%';
+							cell.append(bar);
+						}
+						return el('tr', {}, cell, el('td', { class: 'num', text: value }));
+					}),
+				);
+				if (!entries.length) target.append(el('tr', {}, el('td', { class: 'dim', text: 'Nothing yet.' })));
+			}
+
+			function renderUsage() {
+				const total = state.files.reduce((sum, file) => sum + file.size, 0);
+				$('total-files').textContent = state.files.length.toLocaleString();
+				$('total-size').textContent = bytes(total);
+
+				const perClient = new Map();
+				for (const file of state.files) {
+					const client = file.key.split('/')[0];
+					perClient.set(client, (perClient.get(client) || 0) + file.size);
+				}
+				const ranked = [...perClient].sort((a, b) => b[1] - a[1]);
+				const top = ranked.length ? ranked[0][1] || 1 : 1;
+				miniRows(
+					$('by-client'),
+					ranked.map(([client, size]) => [client, bytes(size), size / top]),
+				);
+				miniRows(
+					$('largest'),
+					[...state.files]
+						.sort((a, b) => b.size - a.size)
+						.slice(0, 10)
+						.map((file) => [file.key, bytes(file.size)]),
+				);
+				miniRows(
+					$('recent'),
+					[...state.files]
+						.sort((a, b) => (a.uploaded < b.uploaded ? 1 : -1))
+						.slice(0, 10)
+						.map((file) => [file.key, when(file.uploaded)]),
+				);
+			}
+
+			function renderRequests() {
+				const rows = [...state.usage]
+					.sort((a, b) => b.requestCount - a.requestCount)
+					.map((entry) =>
+						el(
+							'tr',
+							{},
+							el('td', { class: 'key', text: entry.key }),
+							el('td', { class: 'num', text: entry.requestCount.toLocaleString() }),
+							el('td', { class: 'num hide-narrow', text: when(entry.lastServed) }),
+						),
+					);
+				$('usage-rows').replaceChildren(...rows);
+				$('usage-more').hidden = !state.usageCursor;
+			}
+
+			async function loadRequests(reset) {
+				if (reset) {
+					state.usage = [];
+					state.usageCursor = null;
+				}
+				const query = new URLSearchParams();
+				if ($('usage-client').value) query.set('prefix', $('usage-client').value + '/');
+				if (state.usageCursor) query.set('cursor', state.usageCursor);
+				try {
+					const page = await api('usage?' + query);
+					state.usage.push(...page.counters);
+					state.usageCursor = page.cursor;
+					renderRequests();
+					if (!state.usage.length) {
+						$('usage-rows').append(el('tr', {}, el('td', { colspan: '3', class: 'dim', text: 'No requests recorded.' })));
+					}
+				} catch (error) {
+					showError(error.message);
+				}
+			}
+
+			async function loadFiles() {
+				$('count').textContent = 'Loading';
+				try {
+					const result = await api('files');
+					state.files = result.objects;
+					state.truncated = result.truncated;
+					showError('');
+				} catch (error) {
+					showError(error.message);
+				}
+				refreshFilters();
+				renderFiles();
+				renderUsage();
+			}
+
+			function describeCache(value) {
+				if (value && value.includes('immutable')) return 'Never changes (cached for a year)';
+				return 'Live (browsers recheck on every visit)';
+			}
+
+			function resetDelete() {
+				$('detail-delete').textContent = 'Delete';
+				$('detail-delete').dataset.armed = '';
+			}
+
+			async function openDetail(file) {
+				state.current = file;
+				const url = publicUrl(file.key);
+				$('detail-key').textContent = file.key;
+				$('detail-url').textContent = url;
+				$('detail-url').href = url;
+				$('detail-size').textContent = bytes(file.size);
+				$('detail-type').textContent = file.type || 'Unknown';
+				$('detail-uploaded').textContent = when(file.uploaded);
+				$('detail-cache').textContent = describeCache(file.cache);
+				$('detail-requests').textContent = 'Loading';
+				$('detail-last').textContent = '';
+				$('detail-status').textContent = '';
+				resetDelete();
+				const preview = $('detail-preview');
+				preview.hidden = !IMAGE.test(file.key);
+				if (preview.hidden) preview.removeAttribute('src');
+				else preview.src = url;
+				$('detail').showModal();
+				try {
+					const stats = await api('stats?key=' + encodeURIComponent(file.key));
+					if (state.current !== file) return;
+					$('detail-requests').textContent = (stats.requestCount || 0).toLocaleString();
+					$('detail-last').textContent = when(stats.lastServed);
+				} catch (error) {
+					$('detail-requests').textContent = 'Unavailable';
+				}
+			}
+
+			$('detail-copy').addEventListener('click', async () => {
+				try {
+					await navigator.clipboard.writeText(publicUrl(state.current.key));
+					$('detail-status').textContent = 'URL copied.';
+				} catch {
+					$('detail-status').textContent = 'Copy failed. Select the URL above instead.';
+				}
+			});
+
+			$('detail-purge').addEventListener('click', async () => {
+				$('detail-status').textContent = 'Purging';
+				try {
+					const result = await api('purge?key=' + encodeURIComponent(state.current.key), { method: 'POST' });
+					$('detail-status').textContent = result.purged
+						? 'Edge cache purged.'
+						: 'The purge did not go through (' + (result.reason || 'unknown') + ').';
+				} catch (error) {
+					$('detail-status').textContent = error.message;
+				}
+			});
+
+			$('detail-delete').addEventListener('click', async () => {
+				const button = $('detail-delete');
+				if (!button.dataset.armed) {
+					button.dataset.armed = '1';
+					button.textContent = 'Click again to delete for good';
+					return;
+				}
+				const file = state.current;
+				button.disabled = true;
+				try {
+					await api('objects?key=' + encodeURIComponent(file.key), { method: 'DELETE' });
+					state.files = state.files.filter((entry) => entry !== file);
+					$('detail').close();
+					refreshFilters();
+					renderFiles();
+					renderUsage();
+				} catch (error) {
+					$('detail-status').textContent = error.message;
+					resetDelete();
+				}
+				button.disabled = false;
+			});
+
+			async function send(file, key, item, overwrite) {
+				const status = item.querySelector('.status');
+				status.className = 'status dim';
+				status.textContent = 'Uploading';
+				const query = new URLSearchParams({ key });
+				if (overwrite) query.set('overwrite', 'true');
+				if ($('upload-immutable').checked) query.set('cache', 'immutable');
+				try {
+					const headers = file.type ? { 'Content-Type': file.type } : {};
+					await api('objects?' + query, { method: 'PUT', body: file, headers });
+					status.className = 'status good';
+					status.textContent = overwrite ? 'Replaced' : 'Uploaded';
+					return true;
+				} catch (error) {
+					status.className = 'status bad';
+					if (error.code === 'EXISTS' && !overwrite && !$('upload-immutable').checked) {
+						status.textContent = 'Already exists';
+						const replace = el('button', { text: 'Replace' });
+						replace.addEventListener('click', async () => {
+							replace.remove();
+							if (await send(file, key, item, true)) loadFiles();
+						});
+						item.append(replace);
+					} else {
+						status.textContent = error.code === 'EXISTS' ? 'Already exists and cannot be replaced' : error.message;
+					}
+					return false;
+				}
+			}
+
+			async function uploadAll(fileList) {
+				const folder = $('upload-folder')
+					.value.trim()
+					.replace(/^\/+|\/+$/g, '');
+				let any = false;
+				for (const file of fileList) {
+					const key = folder ? folder + '/' + file.name : file.name;
+					const item = el('li', {}, el('span', { class: 'name', text: key }), el('span', { class: 'status dim', text: 'Waiting' }));
+					$('queue').append(item);
+					if (await send(file, key, item, false)) any = true;
+				}
+				if (any) loadFiles();
+			}
+
+			$('open-upload').addEventListener('click', () => {
+				const preset = $('project').value || $('client').value;
+				if (preset && !$('upload-folder').value) $('upload-folder').value = preset + ($('env').value ? '/' + $('env').value : '');
+				$('queue').replaceChildren();
+				$('upload').showModal();
+			});
+			$('pick').addEventListener('click', () => $('file-input').click());
+			$('file-input').addEventListener('change', (event) => {
+				uploadAll([...event.target.files]);
+				event.target.value = '';
+			});
+			const drop = $('drop');
+			for (const name of ['dragenter', 'dragover']) {
+				drop.addEventListener(name, (event) => {
+					event.preventDefault();
+					drop.classList.add('over');
+				});
+			}
+			drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+			drop.addEventListener('drop', (event) => {
+				event.preventDefault();
+				drop.classList.remove('over');
+				uploadAll([...event.dataTransfer.files]);
+			});
+
+			for (const button of document.querySelectorAll('[data-close]')) {
+				button.addEventListener('click', () => button.closest('dialog').close());
+			}
+			for (const button of document.querySelectorAll('[data-sort]')) {
+				button.addEventListener('click', () => {
+					const field = button.dataset.sort;
+					state.descending = state.sort === field ? !state.descending : field !== 'key';
+					state.sort = field;
+					renderFiles();
+				});
+			}
+			function changed() {
+				state.shown = PAGE;
+				renderFiles();
+			}
+			$('search').addEventListener('input', changed);
+			$('project').addEventListener('change', changed);
+			$('env').addEventListener('change', changed);
+			$('client').addEventListener('change', () => {
+				$('project').value = '';
+				refreshFilters();
+				changed();
+			});
+			$('refresh').addEventListener('click', loadFiles);
+			$('more').addEventListener('click', () => {
+				state.shown += PAGE;
+				renderFiles();
+			});
+			$('usage-load').addEventListener('click', () => loadRequests(true));
+			$('usage-more').addEventListener('click', () => loadRequests(false));
+
+			function show(tab) {
+				for (const name of ['files', 'usage']) {
+					$('view-' + name).hidden = name !== tab;
+					$('tab-' + name).setAttribute('aria-selected', String(name === tab));
+				}
+			}
+			$('tab-files').addEventListener('click', () => show('files'));
+			$('tab-usage').addEventListener('click', () => show('usage'));
+
+			api('me')
+				.then((me) => {
+					$('who').textContent = me.email;
+					$('detail-delete').hidden = !me.canDelete;
+				})
+				.catch(() => {});
+			loadFiles();
+		</script>
+	</body>
+</html>

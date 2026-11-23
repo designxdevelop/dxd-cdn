@@ -8,7 +8,8 @@ Shared by every DXD app and client project. The Worker does not know about Studi
 Authorization: Bearer <token>
 ```
 
-Query `?password=<token>` also works.
+The header is the only way to send a token. `?password=<token>` is not accepted,
+because a token in a URL ends up in history and request logs.
 
 Two kinds of token reach this API:
 
@@ -58,9 +59,10 @@ Entries that are malformed (no `app`, no `prefixes`, no recognized `ops`) are
 ignored and logged. If the whole secret is unparseable, no app token works and
 `UPLOAD_PASSWORD` still does — an app-token mistake cannot lock you out.
 
-The operator routes (`/browse`, `/upload`, `/api/files`, `/api/file-stats`,
-`/api/file-content`, `/api/delete-file`) accept **only** `UPLOAD_PASSWORD`; an
-app token gets `401` there.
+The operator routes (`/api/files`, `/api/file-stats`, `/api/file-content`,
+`/api/delete-file`) accept **only** `UPLOAD_PASSWORD`; an app token gets `401`
+there. The admin panel (`/admin`) takes no token at all: it is signed in to
+through Cloudflare Access (see `docs/admin-panel.md`).
 
 ## Convention: key namespaces
 

@@ -170,9 +170,9 @@ describe('request analytics', () => {
 		await SELF.fetch('https://cdn.designxdevelop.com/acme/site/prod/counted.js');
 		await settledCount('acme/site/prod/counted.js');
 
-		const response = await SELF.fetch(
-			`https://cdn.designxdevelop.com/api/file-stats?password=${env.UPLOAD_PASSWORD}&file=acme/site/prod/counted.js`,
-		);
+		const response = await SELF.fetch('https://cdn.designxdevelop.com/api/file-stats?file=acme/site/prod/counted.js', {
+			headers: { Authorization: `Bearer ${env.UPLOAD_PASSWORD}` },
+		});
 		expect((await response.json()).requestCount).toBeGreaterThanOrEqual(1);
 	});
 
@@ -214,7 +214,7 @@ describe('the platform key space is not tenant territory', () => {
 	});
 
 	test('a reserved key cannot be written through the Objects API', async () => {
-		for (const key of ['_cdn/analytics/acme/a.js.json', 'analytics/acme/a.js.json', 'api/objects']) {
+		for (const key of ['_cdn/analytics/acme/a.js.json', 'analytics/acme/a.js.json', 'api/objects', 'admin/index.html']) {
 			const response = await SELF.fetch('https://cdn.designxdevelop.com/api/objects', {
 				method: 'PUT',
 				headers: { Authorization: `Bearer ${env.UPLOAD_PASSWORD}`, 'X-DXD-Object-Key': key },
@@ -229,60 +229,68 @@ describe('the platform key space is not tenant territory', () => {
 		await put('acme/site/prod/a.js', 'x');
 		await env.CDN_BUCKET.put('_cdn/analytics/acme/site/prod/a.js.json', '{}');
 
-		const response = await SELF.fetch(`https://cdn.designxdevelop.com/api/files?password=${env.UPLOAD_PASSWORD}`);
+		const response = await SELF.fetch('https://cdn.designxdevelop.com/api/files', {
+			headers: { Authorization: `Bearer ${env.UPLOAD_PASSWORD}` },
+		});
 		const body = await response.json();
 		expect(body.files).toEqual(['acme/site/prod/a.js']);
 	});
 });
 
-describe('POST /upload key handling', () => {
-	async function upload(path, filename, body = 'hello') {
+describe('the retired password pages', () => {
+	test.each(['/browse', '/upload'])('GET %s redirects to the admin panel', async (path) => {
+		const response = await SELF.fetch(`https://cdn.designxdevelop.com${path}`, { redirect: 'manual' });
+		expect(response.status).toBe(302);
+		expect(response.headers.get('Location')).toBe('/admin');
+		expect(response.headers.get('Cache-Control')).toBe('private, no-store');
+	});
+
+	test('the old upload form post no longer stores anything, even with the operator password', async () => {
 		const form = new FormData();
 		form.set('password', env.UPLOAD_PASSWORD);
-		form.set('path', path);
-		form.set('file', new File([body], filename, { type: 'text/plain' }));
-		return SELF.fetch('https://cdn.designxdevelop.com/upload', { method: 'POST', body: form });
-	}
+		form.set('path', 'acme/site/prod');
+		form.set('file', new File(['hello'], 'notes.txt', { type: 'text/plain' }));
+		const response = await SELF.fetch('https://cdn.designxdevelop.com/upload', { method: 'POST', body: form });
 
-	test('a normal path stores the object where it says', async () => {
-		const response = await upload('acme/site/prod', 'notes.txt');
-		expect(response.status).toBe(200);
-		expect(await env.CDN_BUCKET.head('acme/site/prod/notes.txt')).not.toBeNull();
+		expect(response.status).toBe(410);
+		expect(await env.CDN_BUCKET.head('acme/site/prod/notes.txt')).toBeNull();
 	});
 
-	test('traversal in the path is rejected instead of becoming a literal key', async () => {
-		const response = await upload('../../escaped', 'u.txt');
+	test('the operator password in the URL opens nothing', async () => {
+		const password = encodeURIComponent(env.UPLOAD_PASSWORD);
+		const browse = await SELF.fetch(`https://cdn.designxdevelop.com/browse?password=${password}`, { redirect: 'manual' });
+		expect(browse.status).toBe(302);
+		expect(await browse.text()).not.toContain(env.UPLOAD_PASSWORD);
 
-		expect(response.status).toBe(400);
-		expect(await response.text()).toContain('not a valid path');
-
-		const listed = await env.CDN_BUCKET.list();
-		expect(listed.objects.map((object) => object.key)).toEqual([]);
-	});
-
-	test('uploading into the reserved key space is rejected', async () => {
-		expect((await upload('_cdn/analytics/acme', 'forged.json')).status).toBe(400);
-		expect((await upload('analytics/acme', 'forged.json')).status).toBe(400);
+		expect((await SELF.fetch(`https://cdn.designxdevelop.com/api/files?password=${password}`)).status).toBe(401);
+		expect((await SELF.fetch(`https://cdn.designxdevelop.com/api/objects/list?password=${password}`)).status).toBe(401);
 	});
 });
 
-describe('operator and tool pages are never cached', () => {
+describe('operator route delete', () => {
+	test('/api/delete-file removes the object and its counters', async () => {
+		await put('acme/site/prod/gone.js', 'x');
+		await env.CDN_BUCKET.put('_cdn/analytics/acme/site/prod/gone.js.json', '{"requestCount":3}');
+
+		const response = await SELF.fetch('https://cdn.designxdevelop.com/api/delete-file?file=acme/site/prod/gone.js', {
+			method: 'DELETE',
+			headers: { Authorization: `Bearer ${env.UPLOAD_PASSWORD}` },
+		});
+
+		expect(response.status).toBe(200);
+		expect(await env.CDN_BUCKET.head('acme/site/prod/gone.js')).toBeNull();
+		expect(await env.CDN_BUCKET.head('_cdn/analytics/acme/site/prod/gone.js.json')).toBeNull();
+	});
+});
+
+describe('tool pages are never cached', () => {
 	test.each([
-		['/browse', 'GET'],
-		['/upload', 'GET'],
 		['/convert', 'GET'],
 		['/speed-test', 'GET'],
 	])('%s says no-store', async (path, method) => {
 		const response = await SELF.fetch(`https://cdn.designxdevelop.com${path}`, { method });
 		expect(response.status).toBe(200);
 		expect(response.headers.get('Cache-Control')).toBe('private, no-store');
-	});
-
-	test('the browse page with a valid password is still no-store', async () => {
-		const response = await SELF.fetch(`https://cdn.designxdevelop.com/browse?password=${env.UPLOAD_PASSWORD}`);
-		expect(response.status).toBe(200);
-		expect(response.headers.get('Cache-Control')).toBe('private, no-store');
-		expect(await response.text()).toContain(env.UPLOAD_PASSWORD);
 	});
 });
 

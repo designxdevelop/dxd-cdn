@@ -102,13 +102,13 @@ describe('PUT /api/objects token scopes', () => {
 		expect(response.status).toBe(403);
 	});
 
-	test('?password= carries an app token too', async () => {
+	test('a token in the query string is not accepted', async () => {
 		const response = await SELF.fetch(`https://cdn.designxdevelop.com/api/objects?password=${HEARD_TOKEN}`, {
 			method: 'PUT',
 			headers: { 'X-DXD-Object-Key': 'heard/hp/prod/via-query.js' },
 			body: 'x',
 		});
-		expect(response.status).toBe(201);
+		expect(response.status).toBe(401);
 	});
 });
 
@@ -134,7 +134,9 @@ describe('GET /api/objects token scopes', () => {
 	});
 
 	test('a scoped token cannot reach the operator-only routes', async () => {
-		const response = await SELF.fetch(`https://cdn.designxdevelop.com/api/files?password=${HEARD_TOKEN}`);
+		const response = await SELF.fetch('https://cdn.designxdevelop.com/api/files', {
+			headers: { Authorization: `Bearer ${HEARD_TOKEN}` },
+		});
 		expect(response.status).toBe(401);
 	});
 });
