@@ -33,13 +33,14 @@ LIVE_EDGE_MAX_AGE = 3600
 
 # Admin panel (/admin) sign-in, through Cloudflare Access. See docs/admin-panel.md.
 # None of these is a secret. With the first two empty the panel stays closed.
+# They match the Access application "DXD CDN admin" (cdn.designxdevelop.com/admin).
 # Team domain, e.g. "your-team.cloudflareaccess.com"
-ACCESS_TEAM_DOMAIN = ""
+ACCESS_TEAM_DOMAIN = "designxdevelop.cloudflareaccess.com"
 # The Access application's Audience (AUD) tag
-ACCESS_AUD = ""
+ACCESS_AUD = "e53991ddb7dc3a115e5a43fea48b9edb4885051d022e2a4e609a349305e78616"
 # Comma-separated emails allowed to delete from the panel. Everyone else who
 # can sign in can browse and upload only.
-ADMIN_OWNERS = ""
+ADMIN_OWNERS = "austin@designxdevelop.com"
 
 # Secrets (set via: wrangler secret put UPLOAD_PASSWORD)
 # UPLOAD_PASSWORD - Operator token for the HTTP APIs (Authorization: Bearer). Not used by /admin

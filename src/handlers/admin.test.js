@@ -103,7 +103,7 @@ describe('who gets into /admin', () => {
 	});
 
 	test('with Access not configured the panel is closed, not open', async () => {
-		delete env.ACCESS_AUD;
+		env.ACCESS_AUD = '';
 		expect((await admin('/admin')).status).toBe(503);
 		expect((await admin('/admin/api/files')).status).toBe(503);
 	});
@@ -193,7 +193,7 @@ describe('admin files', () => {
 	});
 
 	test('with no owners configured, nobody can delete', async () => {
-		delete env.ADMIN_OWNERS;
+		env.ADMIN_OWNERS = '';
 		await env.CDN_BUCKET.put('acme/site/prod/t.txt', 'x');
 		expect((await admin('/admin/api/objects?key=acme/site/prod/t.txt', { method: 'DELETE' })).status).toBe(403);
 	});
