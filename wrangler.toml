@@ -31,8 +31,18 @@ PUBLIC_ORIGIN = "https://cdn.designxdevelop.com"
 # any value; rollback is this value back to 0 plus a deploy, with no code change.
 LIVE_EDGE_MAX_AGE = 3600
 
+# Admin panel (/admin) sign-in, through Cloudflare Access. See docs/admin-panel.md.
+# None of these is a secret. With the first two empty the panel stays closed.
+# Team domain, e.g. "your-team.cloudflareaccess.com"
+ACCESS_TEAM_DOMAIN = ""
+# The Access application's Audience (AUD) tag
+ACCESS_AUD = ""
+# Comma-separated emails allowed to delete from the panel. Everyone else who
+# can sign in can browse and upload only.
+ADMIN_OWNERS = ""
+
 # Secrets (set via: wrangler secret put UPLOAD_PASSWORD)
-# UPLOAD_PASSWORD - Required for /upload and /browse routes
+# UPLOAD_PASSWORD - Operator token for the HTTP APIs (Authorization: Bearer). Not used by /admin
 # APP_TOKENS - Optional scoped per-app tokens for the Objects API
 
 [observability]

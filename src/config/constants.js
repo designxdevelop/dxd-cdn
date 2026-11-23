@@ -65,7 +65,7 @@ export const COMPRESSIBLE_TYPES = new Set([
  * and the public path will not serve them, so platform bookkeeping can never
  * collide with — or be forged by — an app's keys.
  */
-export const RESERVED_KEY_PREFIXES = ['api/', '_cdn/', 'analytics/'];
+export const RESERVED_KEY_PREFIXES = ['api/', 'admin/', '_cdn/', 'analytics/'];
 
 /** Where request counters live. Under a reserved prefix, so it is not tenant-writable. */
 export const ANALYTICS_KEY_PREFIX = '_cdn/analytics/';

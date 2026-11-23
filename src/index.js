@@ -2,14 +2,14 @@
  * DXD CDN - Cloudflare Worker
  *
  * A hybrid CDN that supports:
- * 1. File upload and browsing (marketing-cdn features)
+ * 1. Admin panel for uploads and browsing, behind Cloudflare Access
  * 2. GitHub proxy with versioning and minification, under /gh/
  * 3. Direct R2 file serving for uploaded assets
  */
 
 import { CONTENT_TYPES, IMMUTABLE_CACHE_CONTROL, MUTABLE_CACHE_CONTROL, PREVIEW_TYPES } from './config/constants.js';
 import { handleFilesApi, handleFileStatsApi, handleFileContentApi, handleDeleteFileApi } from './handlers/api.js';
-import { handleBrowseGet, handleBrowsePost } from './handlers/browse.js';
+import { handleAdmin } from './handlers/admin.js';
 import {
 	handleDeleteObjectApi,
 	handleGetObjectApi,
@@ -19,7 +19,6 @@ import {
 } from './handlers/objects-api.js';
 import { handleR2Response, handleGitHubResponse } from './handlers/responses.js';
 import { handleMp4Stream } from './handlers/streaming.js';
-import { handleUploadGet, handleUploadPost } from './handlers/upload.js';
 import { PUBLIC_READ_METHODS, isGitHubProxyPath, legacyGitHubProxyPathname, parseGitHubProxyPath } from './routing.js';
 import { CdnObjects } from './services/cdn-objects.js';
 import { getLatestRelease } from './services/github.js';
@@ -50,43 +49,35 @@ export default {
 
 			// ========== NEW ROUTES (Marketing CDN Features) ==========
 
-			// Handle upload route
-			if (url.pathname === '/upload') {
-				if (request.method === 'GET') {
-					return handleUploadGet();
-				}
-				if (request.method === 'POST') {
-					return handleUploadPost(request, env, url);
-				}
-				return new Response('Method Not Allowed', { status: 405 });
+			// Admin panel, behind Cloudflare Access. Matched before anything
+			// else so no object key can ever answer under /admin.
+			if (url.pathname === '/admin' || url.pathname.startsWith('/admin/')) {
+				return handleAdmin(request, env, url);
 			}
 
-			// Handle browse route
-			if (url.pathname === '/browse') {
-				if (request.method === 'GET') {
-					return handleBrowseGet(url, env);
+			// The password pages are gone; their bookmarks land on the panel.
+			if (url.pathname === '/upload' || url.pathname === '/browse') {
+				if (request.method === 'GET' || request.method === 'HEAD') {
+					return new Response(null, { status: 302, headers: { Location: '/admin', 'Cache-Control': 'private, no-store' } });
 				}
-				if (request.method === 'POST') {
-					return handleBrowsePost(request, env, url);
-				}
-				return new Response('Method Not Allowed', { status: 405 });
+				return new Response('Moved to /admin', { status: 410, headers: { 'Cache-Control': 'private, no-store' } });
 			}
 
-			// Handle API routes
+			// Operator-only JSON routes
 			if (url.pathname === '/api/files' && request.method === 'GET') {
-				return handleFilesApi(url, env);
+				return handleFilesApi(request, url, env);
 			}
 
 			if (url.pathname === '/api/file-stats' && request.method === 'GET') {
-				return handleFileStatsApi(url, env);
+				return handleFileStatsApi(request, url, env);
 			}
 
 			if (url.pathname === '/api/file-content' && request.method === 'GET') {
-				return handleFileContentApi(url, env);
+				return handleFileContentApi(request, url, env);
 			}
 
 			if (url.pathname === '/api/delete-file' && request.method === 'DELETE') {
-				return handleDeleteFileApi(url, env);
+				return handleDeleteFileApi(request, url, env);
 			}
 
 			if (url.pathname === '/api/objects') {

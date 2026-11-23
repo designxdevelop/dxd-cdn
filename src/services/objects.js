@@ -12,6 +12,7 @@ import {
 	MUTABLE_CACHE_CONTROL,
 	RESERVED_KEY_PREFIXES,
 } from '../config/constants.js';
+import { analyticsKeysFor } from '../utils/files.js';
 import { purgeObjectKey } from '../utils/purge.js';
 import { ALL_PREFIXES, scopeAllows } from './scopes.js';
 
@@ -238,6 +239,12 @@ export async function removeObject(env, scope, key) {
 	if (!existing) return { ok: false, code: 'NOT_FOUND', key: normalized };
 
 	await env.CDN_BUCKET.delete(normalized);
+	try {
+		// The key's request counters go with it.
+		await env.CDN_BUCKET.delete(analyticsKeysFor(normalized));
+	} catch {
+		// Counters are bookkeeping; never fail a delete over them.
+	}
 	const purge = await purgeObjectKey(normalized);
 
 	console.log('object deleted', { app: scope.app, key: normalized, purged: purge.purged, purgeReason: purge.reason });

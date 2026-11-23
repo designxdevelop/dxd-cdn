@@ -1,8 +1,7 @@
 /**
  * Programmatic object put/get for any DXD app or client project.
  *
- * Auth: `Authorization: Bearer <token>` (or `?password=` for parity with the
- * existing APIs). The token is either an `APP_TOKENS` entry, which is limited
+ * Auth: `Authorization: Bearer <token>`, header only. The token is either an `APP_TOKENS` entry, which is limited
  * to its own prefixes and ops, or `UPLOAD_PASSWORD`, which is the operator
  * token and can reach the whole bucket. Prefix and op checks live in
  * src/services/objects.js; this module only maps the result to a status code.

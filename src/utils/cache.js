@@ -54,9 +54,8 @@ export function cacheTagsForKey(key) {
 
 /**
  * Headers for the operator and tool pages. With Workers Caching on, HTML that
- * carries no Cache-Control at all can be held at the edge heuristically — and
- * `/browse` interpolates the operator password into inline JS. None of these
- * pages is shareable, so say so explicitly.
+ * carries no Cache-Control at all can be held at the edge heuristically. None
+ * of these pages is shareable, so say so explicitly.
  * @returns {{ 'Content-Type': string, 'Cache-Control': string }}
  */
 export function uncachedHtmlHeaders() {

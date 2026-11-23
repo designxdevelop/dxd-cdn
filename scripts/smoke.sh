@@ -124,16 +124,16 @@ if [[ -n "$APP_TOKEN" ]]; then
 		"$(status -H "Authorization: Bearer $APP_TOKEN" "$ORIGIN/api/objects?key=$APP_TOKEN_PREFIX/$PREFIX/in-scope.js&as=meta")"
 	check 'app token cannot read outside its prefix' 403 \
 		"$(status -H "Authorization: Bearer $APP_TOKEN" "$ORIGIN/api/objects?key=other-app/$PREFIX/out-of-scope.js&as=meta")"
-	check 'app token cannot list the whole bucket' 401 "$(status "$ORIGIN/api/files?password=$APP_TOKEN")"
+	check 'app token cannot list the whole bucket' 401 "$(status -H "Authorization: Bearer $APP_TOKEN" "$ORIGIN/api/files")"
 	check 'app token cannot delete through the operator route' 401 \
-		"$(status -X DELETE "$ORIGIN/api/delete-file?password=$APP_TOKEN&file=$APP_TOKEN_PREFIX/$PREFIX/in-scope.js")"
+		"$(status -X DELETE -H "Authorization: Bearer $APP_TOKEN" "$ORIGIN/api/delete-file?file=$APP_TOKEN_PREFIX/$PREFIX/in-scope.js")"
 	check 'an unknown token is 401, not 403' 401 "$(put_as 'definitely-not-a-token' "$APP_TOKEN_PREFIX/$PREFIX/nope.js" 'x')"
 	check 'public GET of an app-written object needs no token' 200 "$(status "$ORIGIN/$APP_TOKEN_PREFIX/$PREFIX/in-scope.js")"
 	check 'app token cannot list outside its prefix' 403 \
 		"$(status -H "Authorization: Bearer $APP_TOKEN" "$ORIGIN/api/objects/list?prefix=other-app/")"
 	check 'app token cannot delete without the delete op' 403 \
 		"$(status -X DELETE -H "Authorization: Bearer $APP_TOKEN" "$ORIGIN/api/objects?key=$APP_TOKEN_PREFIX/$PREFIX/in-scope.js")"
-	curl -sS -o /dev/null -X DELETE "$ORIGIN/api/delete-file?password=$UPLOAD_PASSWORD&file=$APP_TOKEN_PREFIX/$PREFIX/in-scope.js"
+	curl -sS -o /dev/null -X DELETE -H "Authorization: Bearer $UPLOAD_PASSWORD" "$ORIGIN/api/delete-file?file=$APP_TOKEN_PREFIX/$PREFIX/in-scope.js"
 fi
 
 echo
@@ -165,13 +165,13 @@ check 'PUT into analytics/ is rejected' 400 "$(put 'analytics/forged.json' '{"re
 check 'public GET of _cdn/ is 404' 404 "$(status "$ORIGIN/_cdn/analytics/anything.json")"
 check 'public GET of analytics/ is 404' 404 "$(status "$ORIGIN/analytics/anything.json")"
 check 'a key that merely starts the same way is fine' 201 "$(put "analytics-dashboard/$PREFIX/a.js" 'x')"
-curl -sS -o /dev/null -X DELETE "$ORIGIN/api/delete-file?password=$UPLOAD_PASSWORD&file=analytics-dashboard/$PREFIX/a.js"
+curl -sS -o /dev/null -X DELETE -H "Authorization: Bearer $UPLOAD_PASSWORD" "$ORIGIN/api/delete-file?file=analytics-dashboard/$PREFIX/a.js"
 
 echo
 echo "== Request analytics actually record =="
 for _ in 1 2 3; do curl -sS -o /dev/null "$ORIGIN/$PREFIX/app/prod/config.js"; sleep 0.2; done
 sleep 1
-COUNTED="$(curl -sS "$ORIGIN/api/file-stats?password=$UPLOAD_PASSWORD&file=$PREFIX/app/prod/config.js" | grep -o '"requestCount":[0-9]*' | cut -d: -f2)"
+COUNTED="$(curl -sS -H "Authorization: Bearer $UPLOAD_PASSWORD" "$ORIGIN/api/file-stats?file=$PREFIX/app/prod/config.js" | grep -o '"requestCount":[0-9]*' | cut -d: -f2)"
 if [[ "${COUNTED:-0}" -ge 1 ]]; then
 	printf 'ok   %-58s %s\n' 'public GETs are counted (was always 0)' "requestCount=$COUNTED"
 	PASS=$((PASS + 1))
@@ -184,21 +184,22 @@ echo
 echo "== Cache tags and admin pages =="
 check 'public GET carries the client and per-key cache tags' "dxd-cdn:$PREFIX,dxd-cdn-key:$PREFIX%2Fapp%2Fprod%2Fconfig.js" \
 	"$(header cache-tag "$ORIGIN/$PREFIX/app/prod/config.js")"
-check '/browse is no-store' 'private, no-store' "$(header cache-control "$ORIGIN/browse")"
-check '/upload is no-store' 'private, no-store' "$(header cache-control "$ORIGIN/upload")"
+check '/admin is no-store' 'private, no-store' "$(header cache-control "$ORIGIN/admin")"
 check '/convert is no-store' 'private, no-store' "$(header cache-control "$ORIGIN/convert")"
 check '/speed-test is no-store' 'private, no-store' "$(header cache-control "$ORIGIN/speed-test")"
 
 echo
-echo "== Browse / upload =="
-check 'GET /browse without the password' 200 "$(status "$ORIGIN/browse")"
-check 'GET /api/files with the password' 200 "$(status "$ORIGIN/api/files?password=$UPLOAD_PASSWORD")"
-check 'GET /api/files without the password' 401 "$(status "$ORIGIN/api/files")"
+echo "== Admin panel and operator routes =="
+check 'GET /browse redirects to the panel' 302 "$(status "$ORIGIN/browse")"
+check 'GET /upload redirects to the panel' 302 "$(status "$ORIGIN/upload")"
+check 'GET /api/files with the operator token' 200 "$(status -H "Authorization: Bearer $UPLOAD_PASSWORD" "$ORIGIN/api/files")"
+check 'GET /api/files without a token' 401 "$(status "$ORIGIN/api/files")"
+check 'the token in the URL is not accepted' 401 "$(status "$ORIGIN/api/files?password=$UPLOAD_PASSWORD")"
 
 echo
 echo "== Cleanup =="
 for key in "$PREFIX/app/prod/config.js" "$PREFIX/v1.2.3/bundle.js"; do
-	curl -sS -o /dev/null -X DELETE "$ORIGIN/api/delete-file?password=$UPLOAD_PASSWORD&file=$key"
+	curl -sS -o /dev/null -X DELETE -H "Authorization: Bearer $UPLOAD_PASSWORD" "$ORIGIN/api/delete-file?file=$key"
 done
 
 echo
